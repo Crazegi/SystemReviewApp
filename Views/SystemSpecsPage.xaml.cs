@@ -7,6 +7,7 @@ namespace SystemReview.Views;
 public sealed partial class SystemSpecsPage : Page
 {
     private readonly SystemSpecsViewModel _vm = new();
+    private bool _loaded;
 
     public SystemSpecsPage()
     {
@@ -18,12 +19,30 @@ public sealed partial class SystemSpecsPage : Page
         OsList.ItemsSource = _vm.OsDetails;
         MbList.ItemsSource = _vm.MotherboardDetails;
         DisplayList.ItemsSource = _vm.DisplayDetails;
+        BatteryList.ItemsSource = _vm.BatteryDetails;
+        SoftwareList.ItemsSource = _vm.InstalledSoftware;
+
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(_vm.StatusMessage))
                 StatusText.Text = _vm.StatusMessage;
             if (e.PropertyName == nameof(_vm.IsLoading))
                 LoadingBar.Visibility = _vm.IsLoading ? Visibility.Visible : Visibility.Collapsed;
+            if (e.PropertyName == nameof(_vm.RamUsagePercent))
+            {
+                RamBarGrid.Visibility = Visibility.Visible;
+                RamUsageBar.Value = _vm.RamUsagePercent;
+                RamUsageText.Text = $"{_vm.RamUsagePercent}% used";
+            }
+        };
+
+        this.Loaded += async (_, _) =>
+        {
+            if (!_loaded && SettingsPage.AutoLoadEnabled)
+            {
+                _loaded = true;
+                await _vm.LoadAllAsync();
+            }
         };
     }
 

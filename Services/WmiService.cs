@@ -1,6 +1,7 @@
 using System.Management;
 using System.Runtime.InteropServices;
 using SystemReview.Models;
+using Microsoft.Win32;
 
 namespace SystemReview.Services;
 
@@ -47,21 +48,139 @@ public static class WmiService
         var list = new List<GpuInfo>();
         try
         {
+            // First, build a map of real VRAM from registry (supports >4GB)
+            var realVramMap = GetRealGpuVram();
+
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController");
             foreach (var obj in searcher.Get())
             {
-                var ram = obj["AdapterRAM"];
+                var name = obj["Name"]?.ToString()?.Trim() ?? "Unknown";
+                var driverVersion = obj["DriverVersion"]?.ToString() ?? "N/A";
+                var videoProcessor = obj["VideoProcessor"]?.ToString() ?? "N/A";
+                var resolution = "N/A";
+                var refreshRate = "N/A";
+
+                // Get current resolution and refresh rate
+                var hRes = obj["CurrentHorizontalResolution"];
+                var vRes = obj["CurrentVerticalResolution"];
+                var refresh = obj["CurrentRefreshRate"];
+                var bpp = obj["CurrentBitsPerPixel"];
+
+                if (hRes != null && vRes != null)
+                    resolution = $"{hRes} x {vRes}";
+                if (refresh != null)
+                    refreshRate = $"{refresh} Hz";
+
+                // VRAM: Try registry first (accurate for >4GB), fall back to WMI
+                string vramStr;
+                ulong wmiRam = 0;
+                var adapterRam = obj["AdapterRAM"];
+                if (adapterRam != null)
+                    wmiRam = Convert.ToUInt64(Convert.ToUInt32(adapterRam)); // uint32 from WMI
+
+                // Try to find matching registry VRAM
+                ulong realVram = 0;
+                foreach (var kvp in realVramMap)
+                {
+                    if (name.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase) || kvp.Key.Contains(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        realVram = kvp.Value;
+                        break;
+                    }
+                }
+
+                // If no match by name, take the largest one (usually the discrete GPU)
+                if (realVram == 0 && realVramMap.Count > 0)
+                    realVram = realVramMap.Values.Max();
+
+                // Use whichever is larger (registry is correct for >4GB cards)
+                ulong finalVram = Math.Max(realVram, wmiRam);
+                vramStr = finalVram > 0 ? FormatBytes(finalVram) : "N/A";
+
+                var statusStr = obj["Status"]?.ToString() ?? "N/A";
+                var driverDate = obj["DriverDate"]?.ToString() ?? "";
+                string driverDateFormatted = "N/A";
+                if (!string.IsNullOrEmpty(driverDate))
+                {
+                    try { driverDateFormatted = ManagementDateTimeConverter.ToDateTime(driverDate).ToString("yyyy-MM-dd"); }
+                    catch { }
+                }
+
                 list.Add(new GpuInfo(
-                    Name: obj["Name"]?.ToString() ?? "Unknown",
-                    DriverVersion: obj["DriverVersion"]?.ToString() ?? "N/A",
-                    AdapterRam: ram != null ? FormatBytes(Convert.ToUInt64(ram)) : "N/A",
-                    VideoProcessor: obj["VideoProcessor"]?.ToString() ?? "N/A"
+                    Name: name,
+                    DriverVersion: driverVersion,
+                    AdapterRam: vramStr,
+                    VideoProcessor: videoProcessor,
+                    Resolution: resolution,
+                    RefreshRate: refreshRate,
+                    BitsPerPixel: bpp != null ? $"{bpp}-bit" : "N/A",
+                    Status: statusStr,
+                    DriverDate: driverDateFormatted
                 ));
             }
         }
-        catch (Exception ex) { list.Add(new GpuInfo($"Error: {ex.Message}", "", "", "")); }
+        catch (Exception ex) { list.Add(new GpuInfo($"Error: {ex.Message}", "", "", "", "", "", "", "", "")); }
         return list;
     });
+
+    private static Dictionary<string, ulong> GetRealGpuVram()
+    {
+        var result = new Dictionary<string, ulong>();
+        try
+        {
+            // Read from registry: HKLM\SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000...
+            string classKey = @"SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
+            using var baseKey = Registry.LocalMachine.OpenSubKey(classKey);
+            if (baseKey == null) return result;
+
+            foreach (var subKeyName in baseKey.GetSubKeyNames())
+            {
+                try
+                {
+                    using var subKey = baseKey.OpenSubKey(subKeyName);
+                    if (subKey == null) continue;
+
+                    var desc = subKey.GetValue("DriverDesc")?.ToString() ?? "";
+                    if (string.IsNullOrWhiteSpace(desc)) continue;
+
+                    // Try qwMemorySize first (QWORD, bytes) — most accurate
+                    var qwMem = subKey.GetValue("HardwareInformation.qwMemorySize");
+                    if (qwMem != null)
+                    {
+                        ulong memBytes = qwMem switch
+                        {
+                            long l => (ulong)l,
+                            byte[] b when b.Length >= 8 => BitConverter.ToUInt64(b, 0),
+                            _ => 0
+                        };
+                        if (memBytes > 0)
+                        {
+                            result[desc] = memBytes;
+                            continue;
+                        }
+                    }
+
+                    // Fall back to AdapterString + MemorySize (DWORD)
+                    var memSize = subKey.GetValue("HardwareInformation.MemorySize");
+                    if (memSize != null)
+                    {
+                        ulong memBytes = memSize switch
+                        {
+                            int i => (ulong)i,
+                            long l => (ulong)l,
+                            byte[] b when b.Length >= 4 => BitConverter.ToUInt32(b, 0),
+                            _ => 0
+                        };
+                        if (memBytes > 0)
+                            result[desc] = memBytes;
+                    }
+                }
+                catch { continue; }
+            }
+        }
+        catch { }
+        return result;
+    }
 
     public static Task<List<DriveInfoModel>> GetDriveInfoAsync() => Task.Run(() =>
     {
@@ -144,32 +263,27 @@ public static class WmiService
         var list = new List<Dictionary<string, string>>();
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_DesktopMonitor");
+            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController");
             foreach (var obj in searcher.Get())
             {
-                var d = new Dictionary<string, string>
+                var d = new Dictionary<string, string>();
+                d["GPU"] = obj["Name"]?.ToString() ?? "N/A";
+
+                var hRes = obj["CurrentHorizontalResolution"];
+                var vRes = obj["CurrentVerticalResolution"];
+                d["Resolution"] = (hRes != null && vRes != null) ? $"{hRes} x {vRes}" : "N/A";
+
+                d["Refresh Rate"] = obj["CurrentRefreshRate"] != null ? $"{obj["CurrentRefreshRate"]} Hz" : "N/A";
+                d["Color Depth"] = obj["CurrentBitsPerPixel"] != null ? $"{obj["CurrentBitsPerPixel"]}-bit" : "N/A";
+
+                // Scaling info
+                try
                 {
-                    ["Name"] = obj["Name"]?.ToString() ?? "N/A",
-                    ["ScreenWidth"] = obj["ScreenWidth"]?.ToString() ?? "N/A",
-                    ["ScreenHeight"] = obj["ScreenHeight"]?.ToString() ?? "N/A",
-                    ["MonitorType"] = obj["MonitorType"]?.ToString() ?? "N/A"
-                };
-                list.Add(d);
-            }
-            if (list.Count == 0)
-            {
-                using var vc = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController");
-                foreach (var obj in vc.Get())
-                {
-                    var d = new Dictionary<string, string>
-                    {
-                        ["Name"] = obj["Name"]?.ToString() ?? "N/A",
-                        ["ScreenWidth"] = obj["CurrentHorizontalResolution"]?.ToString() ?? "N/A",
-                        ["ScreenHeight"] = obj["CurrentVerticalResolution"]?.ToString() ?? "N/A",
-                        ["RefreshRate"] = $"{obj["CurrentRefreshRate"]} Hz"
-                    };
-                    list.Add(d);
+                    d["DPI Scale"] = $"{System.Runtime.InteropServices.Marshal.SystemDefaultCharSize * 72}";
                 }
+                catch { }
+
+                list.Add(d);
             }
         }
         catch (Exception ex) { list.Add(new Dictionary<string, string> { ["Error"] = ex.Message }); }
@@ -199,14 +313,9 @@ public static class WmiService
                     : "Charging / AC Power";
                 info["Chemistry"] = (Convert.ToInt32(obj["Chemistry"] ?? 0)) switch
                 {
-                    1 => "Other",
-                    2 => "Unknown",
-                    3 => "Lead Acid",
-                    4 => "Nickel Cadmium",
-                    5 => "Nickel Metal Hydride",
-                    6 => "Lithium-ion",
-                    7 => "Zinc Air",
-                    8 => "Lithium Polymer",
+                    1 => "Other", 2 => "Unknown", 3 => "Lead Acid",
+                    4 => "Nickel Cadmium", 5 => "Nickel Metal Hydride",
+                    6 => "Lithium-ion", 7 => "Zinc Air", 8 => "Lithium Polymer",
                     _ => "N/A"
                 };
                 info["Design Voltage"] = $"{obj["DesignVoltage"]} mV";
@@ -221,34 +330,36 @@ public static class WmiService
         var list = new List<KeyValuePair<string, string>>();
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT Name, Version FROM Win32_Product");
-            var results = searcher.Get()
-                .Cast<ManagementObject>()
-                .Where(o => o["Name"] != null)
-                .OrderBy(o => o["Name"]?.ToString())
-                .Take(20);
-
-            foreach (var obj in results)
+            // Use registry instead of Win32_Product (much faster!)
+            var paths = new[]
             {
-                var name = obj["Name"]?.ToString() ?? "Unknown";
-                var version = obj["Version"]?.ToString() ?? "";
-                list.Add(new(name, version));
-            }
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+            };
 
-            if (list.Count == 0)
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var path in paths)
             {
-                using var regSearcher = new ManagementObjectSearcher(@"SELECT * FROM Win32_InstalledWin32Program");
-                foreach (var obj in regSearcher.Get().Cast<ManagementObject>()
-                    .Where(o => o["Name"] != null)
-                    .OrderBy(o => o["Name"]?.ToString())
-                    .Take(20))
+                using var key = Registry.LocalMachine.OpenSubKey(path);
+                if (key == null) continue;
+
+                foreach (var subKeyName in key.GetSubKeyNames())
                 {
-                    list.Add(new(
-                        obj["Name"]?.ToString() ?? "Unknown",
-                        obj["Version"]?.ToString() ?? ""
-                    ));
+                    try
+                    {
+                        using var subKey = key.OpenSubKey(subKeyName);
+                        var name = subKey?.GetValue("DisplayName")?.ToString();
+                        if (string.IsNullOrWhiteSpace(name) || !seen.Add(name)) continue;
+
+                        var version = subKey?.GetValue("DisplayVersion")?.ToString() ?? "";
+                        list.Add(new(name, version));
+                    }
+                    catch { }
                 }
             }
+
+            list = list.OrderBy(kv => kv.Key).Take(30).ToList();
         }
         catch (Exception ex) { list.Add(new("Error loading software", ex.Message)); }
         return list;
@@ -260,68 +371,39 @@ public static class WmiService
 
     private static readonly Dictionary<int, string> SmartAttributeNames = new()
     {
-        [1] = "Read Error Rate",
-        [2] = "Throughput Performance",
-        [3] = "Spin-Up Time",
-        [4] = "Start/Stop Count",
-        [5] = "Reallocated Sectors Count",
-        [7] = "Seek Error Rate",
-        [8] = "Seek Time Performance",
-        [9] = "Power-On Hours",
-        [10] = "Spin Retry Count",
-        [11] = "Recalibration Retries",
-        [12] = "Power Cycle Count",
-        [170] = "Available Reserved Space",
-        [171] = "Program Fail Count",
-        [172] = "Erase Fail Count",
-        [173] = "Wear Leveling Count",
-        [174] = "Unexpected Power Loss",
+        [1] = "Read Error Rate", [2] = "Throughput Performance",
+        [3] = "Spin-Up Time", [4] = "Start/Stop Count",
+        [5] = "Reallocated Sectors Count", [7] = "Seek Error Rate",
+        [8] = "Seek Time Performance", [9] = "Power-On Hours",
+        [10] = "Spin Retry Count", [11] = "Recalibration Retries",
+        [12] = "Power Cycle Count", [170] = "Available Reserved Space",
+        [171] = "Program Fail Count", [172] = "Erase Fail Count",
+        [173] = "Wear Leveling Count", [174] = "Unexpected Power Loss",
         [175] = "Power Loss Protection Failure",
-        [176] = "Erase Fail Count (Chip)",
-        [177] = "Wear Range Delta",
+        [176] = "Erase Fail Count (Chip)", [177] = "Wear Range Delta",
         [178] = "Used Reserved Block Count (Chip)",
         [179] = "Used Reserved Block Count (Total)",
         [180] = "Unused Reserved Block Count (Total)",
-        [181] = "Program Fail Count (Total)",
-        [182] = "Erase Fail Count (Total)",
-        [183] = "Runtime Bad Block",
-        [184] = "End-to-End Error",
-        [187] = "Reported Uncorrectable Errors",
-        [188] = "Command Timeout",
-        [189] = "High Fly Writes",
-        [190] = "Airflow Temperature",
-        [191] = "G-Sense Error Rate",
-        [192] = "Power-Off Retract Count",
-        [193] = "Load Cycle Count",
-        [194] = "Temperature",
-        [195] = "Hardware ECC Recovered",
-        [196] = "Reallocation Event Count",
+        [181] = "Program Fail Count (Total)", [182] = "Erase Fail Count (Total)",
+        [183] = "Runtime Bad Block", [184] = "End-to-End Error",
+        [187] = "Reported Uncorrectable Errors", [188] = "Command Timeout",
+        [189] = "High Fly Writes", [190] = "Airflow Temperature",
+        [191] = "G-Sense Error Rate", [192] = "Power-Off Retract Count",
+        [193] = "Load Cycle Count", [194] = "Temperature",
+        [195] = "Hardware ECC Recovered", [196] = "Reallocation Event Count",
         [197] = "Current Pending Sector Count",
         [198] = "Offline Uncorrectable Sector Count",
-        [199] = "UltraDMA CRC Error Count",
-        [200] = "Multi-Zone Error Rate",
-        [201] = "Soft Read Error Rate",
-        [220] = "Disk Shift",
-        [222] = "Loaded Hours",
-        [223] = "Load Retry Count",
-        [224] = "Load Friction",
-        [225] = "Load Cycle Count",
-        [226] = "Load-in Time",
-        [230] = "Drive Life Protection Status",
-        [231] = "SSD Life Left",
-        [232] = "Endurance Remaining",
-        [233] = "Media Wearout Indicator",
-        [234] = "Average/Max Erase Count",
-        [235] = "Good/System Block Count",
-        [240] = "Head Flying Hours",
-        [241] = "Total LBAs Written",
-        [242] = "Total LBAs Read",
-        [243] = "Total LBAs Written Expanded",
-        [244] = "Total LBAs Read Expanded",
-        [249] = "NAND Writes (1GiB)",
-        [250] = "Read Error Retry Rate",
-        [251] = "Minimum Spares Remaining",
-        [252] = "Newly Added Bad Flash Block",
+        [199] = "UltraDMA CRC Error Count", [200] = "Multi-Zone Error Rate",
+        [201] = "Soft Read Error Rate", [220] = "Disk Shift",
+        [222] = "Loaded Hours", [223] = "Load Retry Count",
+        [224] = "Load Friction", [225] = "Load Cycle Count",
+        [226] = "Load-in Time", [230] = "Drive Life Protection Status",
+        [231] = "SSD Life Left", [232] = "Endurance Remaining",
+        [233] = "Media Wearout Indicator", [234] = "Average/Max Erase Count",
+        [235] = "Good/System Block Count", [240] = "Head Flying Hours",
+        [241] = "Total LBAs Written", [242] = "Total LBAs Read",
+        [249] = "NAND Writes (1GiB)", [250] = "Read Error Retry Rate",
+        [251] = "Minimum Spares Remaining", [252] = "Newly Added Bad Flash Block",
         [254] = "Free Fall Protection"
     };
 
@@ -423,7 +505,7 @@ public static class WmiService
                     diskIndex++;
                 }
             }
-            catch { /* S.M.A.R.T. not available */ }
+            catch { }
 
             int idx = 0;
             foreach (var kvp in diskInfoMap)
@@ -442,9 +524,9 @@ public static class WmiService
 
                 string health = "✅ Healthy";
                 if (reallocRaw > 100 || pendingRaw > 10 || uncorrRaw > 10)
-                    health = "❌ Critical — Replace Soon!";
+                    health = "❌ Critical - Replace Soon!";
                 else if (reallocRaw > 0 || pendingRaw > 0 || uncorrRaw > 0)
-                    health = "⚠️ Warning — Monitor Closely";
+                    health = "⚠️ Warning - Monitor Closely";
 
                 string pohStr = powerOnHoursRaw >= 0 ? $"{powerOnHoursRaw:N0} hours" : "N/A (run as Admin)";
                 string podStr = powerOnHoursRaw >= 0 ? $"{powerOnHoursRaw / 24.0:F1} days ({powerOnHoursRaw / 8760.0:F2} years)" : "N/A";
@@ -455,7 +537,7 @@ public static class WmiService
                     SizeFormatted: FormatBytes(size), Status: status,
                     PowerOnHours: pohStr, PowerOnDays: podStr,
                     PowerCycleCount: powerCycleRaw >= 0 ? $"{powerCycleRaw:N0}" : "N/A",
-                    Temperature: tempRaw >= 0 ? $"{tempRaw & 0xFF}°C / {(tempRaw & 0xFF) * 9 / 5 + 32}°F" : "N/A",
+                    Temperature: tempRaw >= 0 ? $"{tempRaw & 0xFF} C / {(tempRaw & 0xFF) * 9 / 5 + 32} F" : "N/A",
                     ReallocatedSectors: reallocRaw >= 0 ? $"{reallocRaw}" : "N/A",
                     PendingSectors: pendingRaw >= 0 ? $"{pendingRaw}" : "N/A",
                     UncorrectableSectors: uncorrRaw >= 0 ? $"{uncorrRaw}" : "N/A",
@@ -469,7 +551,7 @@ public static class WmiService
         catch (Exception ex)
         {
             disks.Add(new DiskHealthModel(
-                $"Error: {ex.Message}", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "❌ Error", []
+                $"Error: {ex.Message}", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "Error", []
             ));
         }
         return disks;
@@ -571,155 +653,219 @@ public static class WmiService
             }
             catch { }
 
-            using var edidSearcher = new ManagementObjectSearcher(scope,
-                new ObjectQuery("SELECT InstanceName, WmiMonitorRawEEdidV1Block FROM WmiMonitorRawEEdidV1Block WHERE BlockType=0"));
+            // Try EDID first
+            bool gotEdid = false;
+            try
+            {
+                using var edidSearcher = new ManagementObjectSearcher(scope,
+                    new ObjectQuery("SELECT InstanceName, WmiMonitorRawEEdidV1Block FROM WmiMonitorRawEEdidV1Block WHERE BlockType=0"));
 
-            foreach (var obj in edidSearcher.Get())
+                foreach (var obj in edidSearcher.Get())
+                {
+                    try
+                    {
+                        var instanceName = obj["InstanceName"]?.ToString() ?? "Unknown";
+                        var edidBytes = (byte[])obj["WmiMonitorRawEEdidV1Block"];
+
+                        if (edidBytes == null || edidBytes.Length < 128) continue;
+                        gotEdid = true;
+
+                        int mfgCode = (edidBytes[8] << 8) | edidBytes[9];
+                        char c1 = (char)(((mfgCode >> 10) & 0x1F) + 'A' - 1);
+                        char c2 = (char)(((mfgCode >> 5) & 0x1F) + 'A' - 1);
+                        char c3 = (char)((mfgCode & 0x1F) + 'A' - 1);
+                        string mfgStr = $"{c1}{c2}{c3}";
+                        string manufacturer = PnpManufacturers.GetValueOrDefault(mfgStr, mfgStr);
+
+                        int productCode = edidBytes[10] | (edidBytes[11] << 8);
+                        uint serialNum = (uint)(edidBytes[12] | (edidBytes[13] << 8) | (edidBytes[14] << 16) | (edidBytes[15] << 24));
+
+                        int mfgWeek = edidBytes[16];
+                        int mfgYear = edidBytes[17] + 1990;
+
+                        string edidVersion = $"{edidBytes[18]}.{edidBytes[19]}";
+
+                        bool isDigital = (edidBytes[20] & 0x80) != 0;
+                        string displayType;
+                        string colorDepth = "N/A";
+
+                        if (isDigital && edidBytes[18] >= 1 && edidBytes[19] >= 4)
+                        {
+                            int depth = (edidBytes[20] >> 4) & 0x07;
+                            colorDepth = depth switch
+                            {
+                                1 => "6-bit", 2 => "8-bit", 3 => "10-bit",
+                                4 => "12-bit", 5 => "14-bit", 6 => "16-bit",
+                                _ => "Undefined"
+                            };
+                            int iface2 = edidBytes[20] & 0x0F;
+                            displayType = iface2 switch
+                            {
+                                1 => "Digital (DVI)", 2 => "Digital (HDMI-a)",
+                                3 => "Digital (HDMI-b)", 4 => "Digital (MDDI)",
+                                5 => "Digital (DisplayPort)", _ => "Digital"
+                            };
+                        }
+                        else if (isDigital) { displayType = "Digital (DFP 1.x)"; }
+                        else { displayType = "Analog (VGA)"; }
+
+                        int hSizeCm = edidBytes[21];
+                        int vSizeCm = edidBytes[22];
+                        string screenSize = (hSizeCm > 0 && vSizeCm > 0)
+                            ? $"{hSizeCm} cm x {vSizeCm} cm ({hSizeCm / 2.54:F1}\" x {vSizeCm / 2.54:F1}\")"
+                            : "N/A";
+
+                        double diagInches = 0;
+                        if (hSizeCm > 0 && vSizeCm > 0)
+                            diagInches = Math.Sqrt(hSizeCm * hSizeCm + vSizeCm * vSizeCm) / 2.54;
+                        string diagStr = diagInches > 0 ? $"{diagInches:F1}\"" : "N/A";
+
+                        double gamma = (edidBytes[23] + 100) / 100.0;
+                        string gammaStr = edidBytes[23] != 0xFF ? $"{gamma:F2}" : "Defined in DI-EXT";
+
+                        var dpmsFeatures = new List<string>();
+                        if ((edidBytes[24] & 0x80) != 0) dpmsFeatures.Add("Standby");
+                        if ((edidBytes[24] & 0x40) != 0) dpmsFeatures.Add("Suspend");
+                        if ((edidBytes[24] & 0x20) != 0) dpmsFeatures.Add("Active-Off");
+                        string dpms = dpmsFeatures.Count > 0 ? string.Join(", ", dpmsFeatures) : "None";
+
+                        var resolutions = new List<string>();
+                        for (int bit = 0; bit < 16 && bit < EstablishedTimings.Length; bit++)
+                        {
+                            int byteIdx = 35 + (bit / 8);
+                            int bitIdx = 7 - (bit % 8);
+                            if (byteIdx < edidBytes.Length && (edidBytes[byteIdx] & (1 << bitIdx)) != 0)
+                            {
+                                var (w, h) = EstablishedTimings[bit];
+                                resolutions.Add($"{w}x{h}");
+                            }
+                        }
+
+                        string maxRes = "N/A";
+                        if (edidBytes.Length >= 72)
+                        {
+                            int pixelClock = edidBytes[54] | (edidBytes[55] << 8);
+                            if (pixelClock > 0)
+                            {
+                                int hActive = edidBytes[56] | ((edidBytes[58] & 0xF0) << 4);
+                                int vActive = edidBytes[59] | ((edidBytes[61] & 0xF0) << 4);
+                                if (hActive > 0 && vActive > 0)
+                                {
+                                    maxRes = $"{hActive} x {vActive}";
+                                    if (!resolutions.Contains($"{hActive}x{vActive}"))
+                                        resolutions.Insert(0, $"{hActive}x{vActive} (native)");
+                                }
+                            }
+                        }
+
+                        string monitorName = "Unknown Monitor";
+                        string serialString = serialNum > 0 ? $"{serialNum}" : "N/A";
+
+                        for (int block = 0; block < 4; block++)
+                        {
+                            int offset = 54 + (block * 18);
+                            if (offset + 18 > edidBytes.Length) break;
+
+                            if (edidBytes[offset] == 0 && edidBytes[offset + 1] == 0)
+                            {
+                                int tag = edidBytes[offset + 3];
+                                if (tag == 0xFC)
+                                    monitorName = System.Text.Encoding.ASCII
+                                        .GetString(edidBytes, offset + 5, 13).Trim('\n', '\r', ' ', '\0');
+                                else if (tag == 0xFF)
+                                    serialString = System.Text.Encoding.ASCII
+                                        .GetString(edidBytes, offset + 5, 13).Trim('\n', '\r', ' ', '\0');
+                            }
+                        }
+
+                        var mfgDate = new DateTime(mfgYear, Math.Max(1, Math.Min(12, (mfgWeek * 12) / 52 + 1)), 1);
+                        var age = DateTime.Now - mfgDate;
+                        string estimatedUsage = $"Manufactured ~{age.Days / 365.25:F1} years ago";
+                        if (age.Days > 0) estimatedUsage += $" (est. {age.Days * 8:N0} hrs if ~8h/day)";
+
+                        string connType = connectionTypes.GetValueOrDefault(NormalizeInstance(instanceName), "Unknown");
+
+                        monitors.Add(new MonitorDetailModel(
+                            Name: monitorName, Manufacturer: manufacturer, ManufacturerCode: mfgStr,
+                            ProductCode: $"0x{productCode:X4}", SerialNumber: serialString,
+                            ManufactureDate: $"Week {mfgWeek}, {mfgYear}", EdidVersion: edidVersion,
+                            MaxResolution: maxRes, ScreenSize: screenSize, DiagonalInches: diagStr,
+                            DisplayType: displayType, GammaValue: gammaStr, DpmsSupport: dpms,
+                            ColorBitDepth: colorDepth, YearOfManufacture: mfgYear.ToString(),
+                            WeekOfManufacture: mfgWeek.ToString(), EstimatedUsage: estimatedUsage,
+                            SupportedResolutions: resolutions, ConnectionType: connType,
+                            DriverStatus: activeMonitors.GetValueOrDefault(NormalizeInstance(instanceName), false) ? "Active" : "Inactive"
+                        ));
+                    }
+                    catch { continue; }
+                }
+            }
+            catch { }
+
+            // Fallback: use WmiMonitorID + Win32_VideoController for basic data
+            if (!gotEdid || monitors.Count == 0)
             {
                 try
                 {
-                    var instanceName = obj["InstanceName"]?.ToString() ?? "Unknown";
-                    var edidBytes = (byte[])obj["WmiMonitorRawEEdidV1Block"];
-
-                    if (edidBytes == null || edidBytes.Length < 128) continue;
-
-                    int mfgCode = (edidBytes[8] << 8) | edidBytes[9];
-                    char c1 = (char)(((mfgCode >> 10) & 0x1F) + 'A' - 1);
-                    char c2 = (char)(((mfgCode >> 5) & 0x1F) + 'A' - 1);
-                    char c3 = (char)((mfgCode & 0x1F) + 'A' - 1);
-                    string mfgStr = $"{c1}{c2}{c3}";
-                    string manufacturer = PnpManufacturers.GetValueOrDefault(mfgStr, mfgStr);
-
-                    int productCode = edidBytes[10] | (edidBytes[11] << 8);
-                    uint serialNum = (uint)(edidBytes[12] | (edidBytes[13] << 8) | (edidBytes[14] << 16) | (edidBytes[15] << 24));
-
-                    int mfgWeek = edidBytes[16];
-                    int mfgYear = edidBytes[17] + 1990;
-
-                    string edidVersion = $"{edidBytes[18]}.{edidBytes[19]}";
-
-                    bool isDigital = (edidBytes[20] & 0x80) != 0;
-                    string displayType;
-                    string colorDepth = "N/A";
-
-                    if (isDigital && edidBytes[18] >= 1 && edidBytes[19] >= 4)
+                    using var idSearcher = new ManagementObjectSearcher(scope,
+                        new ObjectQuery("SELECT * FROM WmiMonitorID"));
+                    foreach (var obj in idSearcher.Get())
                     {
-                        int depth = (edidBytes[20] >> 4) & 0x07;
-                        colorDepth = depth switch
+                        string DecodeWmiChars(ushort[]? arr) =>
+                            arr != null ? new string(arr.Select(c => (char)c).ToArray()).Trim('\0', ' ') : "N/A";
+
+                        var mfgCode = DecodeWmiChars(obj["ManufacturerName"] as ushort[]);
+                        var prodCode = DecodeWmiChars(obj["ProductCodeID"] as ushort[]);
+                        var serial = DecodeWmiChars(obj["SerialNumberID"] as ushort[]);
+                        var friendlyName = DecodeWmiChars(obj["UserFriendlyName"] as ushort[]);
+                        var year = obj["YearOfManufacture"]?.ToString() ?? "N/A";
+                        var week = obj["WeekOfManufacture"]?.ToString() ?? "N/A";
+
+                        var mfgShort = mfgCode.Length >= 3 ? mfgCode[..3] : mfgCode;
+                        var mfgFull = PnpManufacturers.GetValueOrDefault(mfgShort, mfgCode);
+
+                        var instanceName = obj["InstanceName"]?.ToString() ?? "";
+                        var connType = connectionTypes.GetValueOrDefault(NormalizeInstance(instanceName), "Unknown");
+                        var active = activeMonitors.GetValueOrDefault(NormalizeInstance(instanceName), false);
+
+                        // Get resolution from VideoController
+                        string res = "N/A";
+                        string refresh = "N/A";
+                        try
                         {
-                            1 => "6-bit", 2 => "8-bit", 3 => "10-bit",
-                            4 => "12-bit", 5 => "14-bit", 6 => "16-bit",
-                            _ => "Undefined"
-                        };
-                        int iface2 = edidBytes[20] & 0x0F;
-                        displayType = iface2 switch
-                        {
-                            1 => "Digital (DVI)", 2 => "Digital (HDMI-a)",
-                            3 => "Digital (HDMI-b)", 4 => "Digital (MDDI)",
-                            5 => "Digital (DisplayPort)", _ => "Digital"
-                        };
-                    }
-                    else if (isDigital) { displayType = "Digital (DFP 1.x)"; }
-                    else { displayType = "Analog (VGA)"; }
-
-                    int hSizeCm = edidBytes[21];
-                    int vSizeCm = edidBytes[22];
-                    string screenSize = (hSizeCm > 0 && vSizeCm > 0)
-                        ? $"{hSizeCm} cm x {vSizeCm} cm ({hSizeCm / 2.54:F1}\" x {vSizeCm / 2.54:F1}\")"
-                        : "N/A";
-
-                    double diagInches = 0;
-                    if (hSizeCm > 0 && vSizeCm > 0)
-                        diagInches = Math.Sqrt(hSizeCm * hSizeCm + vSizeCm * vSizeCm) / 2.54;
-                    string diagStr = diagInches > 0 ? $"{diagInches:F1}\"" : "N/A";
-
-                    double gamma = (edidBytes[23] + 100) / 100.0;
-                    string gammaStr = edidBytes[23] != 0xFF ? $"{gamma:F2}" : "Defined in DI-EXT";
-
-                    var dpmsFeatures = new List<string>();
-                    if ((edidBytes[24] & 0x80) != 0) dpmsFeatures.Add("Standby");
-                    if ((edidBytes[24] & 0x40) != 0) dpmsFeatures.Add("Suspend");
-                    if ((edidBytes[24] & 0x20) != 0) dpmsFeatures.Add("Active-Off");
-                    string dpms = dpmsFeatures.Count > 0 ? string.Join(", ", dpmsFeatures) : "None";
-
-                    var resolutions = new List<string>();
-                    for (int bit = 0; bit < 16 && bit < EstablishedTimings.Length; bit++)
-                    {
-                        int byteIdx = 35 + (bit / 8);
-                        int bitIdx = 7 - (bit % 8);
-                        if (byteIdx < edidBytes.Length && (edidBytes[byteIdx] & (1 << bitIdx)) != 0)
-                        {
-                            var (w, h) = EstablishedTimings[bit];
-                            resolutions.Add($"{w}x{h}");
-                        }
-                    }
-
-                    string maxRes = "N/A";
-                    if (edidBytes.Length >= 72)
-                    {
-                        int pixelClock = edidBytes[54] | (edidBytes[55] << 8);
-                        if (pixelClock > 0)
-                        {
-                            int hActive = edidBytes[56] | ((edidBytes[58] & 0xF0) << 4);
-                            int vActive = edidBytes[59] | ((edidBytes[61] & 0xF0) << 4);
-                            if (hActive > 0 && vActive > 0)
+                            using var vc = new ManagementObjectSearcher("SELECT CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate FROM Win32_VideoController");
+                            foreach (var v in vc.Get())
                             {
-                                maxRes = $"{hActive} x {vActive}";
-                                if (!resolutions.Contains($"{hActive}x{vActive}"))
-                                    resolutions.Insert(0, $"{hActive}x{vActive} (native)");
+                                var h = v["CurrentHorizontalResolution"];
+                                var vv = v["CurrentVerticalResolution"];
+                                if (h != null && vv != null) res = $"{h} x {vv}";
+                                if (v["CurrentRefreshRate"] != null) refresh = $"{v["CurrentRefreshRate"]} Hz";
+                                break;
                             }
                         }
+                        catch { }
+
+                        monitors.Add(new MonitorDetailModel(
+                            Name: string.IsNullOrWhiteSpace(friendlyName) ? "Monitor" : friendlyName,
+                            Manufacturer: mfgFull, ManufacturerCode: mfgShort,
+                            ProductCode: prodCode, SerialNumber: serial,
+                            ManufactureDate: $"Week {week}, {year}",
+                            EdidVersion: "N/A (via WmiMonitorID)",
+                            MaxResolution: res, ScreenSize: "N/A", DiagonalInches: "N/A",
+                            DisplayType: "N/A", GammaValue: "N/A", DpmsSupport: "N/A",
+                            ColorBitDepth: "N/A", YearOfManufacture: year,
+                            WeekOfManufacture: week,
+                            EstimatedUsage: year != "N/A" ? $"Manufactured ~{DateTime.Now.Year - int.Parse(year)} years ago" : "N/A",
+                            SupportedResolutions: [res, refresh],
+                            ConnectionType: connType,
+                            DriverStatus: active ? "Active" : "Inactive"
+                        ));
                     }
-
-                    string monitorName = "Unknown Monitor";
-                    string serialString = serialNum > 0 ? $"{serialNum}" : "N/A";
-
-                    for (int block = 0; block < 4; block++)
-                    {
-                        int offset = 54 + (block * 18);
-                        if (offset + 18 > edidBytes.Length) break;
-
-                        if (edidBytes[offset] == 0 && edidBytes[offset + 1] == 0)
-                        {
-                            int tag = edidBytes[offset + 3];
-                            if (tag == 0xFC)
-                            {
-                                monitorName = System.Text.Encoding.ASCII
-                                    .GetString(edidBytes, offset + 5, 13)
-                                    .Trim('\n', '\r', ' ', '\0');
-                            }
-                            else if (tag == 0xFF)
-                            {
-                                serialString = System.Text.Encoding.ASCII
-                                    .GetString(edidBytes, offset + 5, 13)
-                                    .Trim('\n', '\r', ' ', '\0');
-                            }
-                        }
-                    }
-
-                    var mfgDate = new DateTime(mfgYear, Math.Max(1, Math.Min(12, (mfgWeek * 12) / 52 + 1)), 1);
-                    var age = DateTime.Now - mfgDate;
-                    string estimatedUsage = $"Manufactured ~{age.Days / 365.25:F1} years ago";
-                    if (age.Days > 0)
-                        estimatedUsage += $" (est. {age.Days * 8:N0} hrs if ~8h/day)";
-
-                    string connType = connectionTypes.GetValueOrDefault(NormalizeInstance(instanceName), "Unknown");
-
-                    monitors.Add(new MonitorDetailModel(
-                        Name: monitorName, Manufacturer: manufacturer, ManufacturerCode: mfgStr,
-                        ProductCode: $"0x{productCode:X4}", SerialNumber: serialString,
-                        ManufactureDate: $"Week {mfgWeek}, {mfgYear}", EdidVersion: edidVersion,
-                        MaxResolution: maxRes, ScreenSize: screenSize, DiagonalInches: diagStr,
-                        DisplayType: displayType, GammaValue: gammaStr, DpmsSupport: dpms,
-                        ColorBitDepth: colorDepth, YearOfManufacture: mfgYear.ToString(),
-                        WeekOfManufacture: mfgWeek.ToString(), EstimatedUsage: estimatedUsage,
-                        SupportedResolutions: resolutions, ConnectionType: connType,
-                        DriverStatus: activeMonitors.GetValueOrDefault(NormalizeInstance(instanceName), false) ? "Active" : "Inactive"
-                    ));
                 }
-                catch { continue; }
+                catch { }
             }
 
+            // Last resort fallback
             if (monitors.Count == 0)
             {
                 using var fallback = new ManagementObjectSearcher("SELECT * FROM Win32_DesktopMonitor");

@@ -7,15 +7,25 @@ namespace SystemReview.Views;
 
 public sealed partial class MonitorInfoPage : Page
 {
+    private bool _loaded;
+
     public MonitorInfoPage()
     {
         this.InitializeComponent();
+        this.Loaded += async (_, _) =>
+        {
+            if (!_loaded && SettingsPage.AutoLoadEnabled)
+            {
+                _loaded = true;
+                RefreshBtn_Click(this, new RoutedEventArgs());
+            }
+        };
     }
 
     private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
     {
         LoadingBar.Visibility = Visibility.Visible;
-        StatusText.Text = "Reading EDID data from monitors...";
+        StatusText.Text = "Reading monitor data...";
         MonitorPanel.Children.Clear();
 
         try
@@ -36,7 +46,6 @@ public sealed partial class MonitorInfoPage : Page
 
                 var stack = new StackPanel { Spacing = 12 };
 
-                // Header
                 var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
                 header.Children.Add(new FontIcon { Glyph = "\xE7F4", FontSize = 22 });
                 header.Children.Add(new TextBlock
@@ -45,7 +54,6 @@ public sealed partial class MonitorInfoPage : Page
                     Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"]
                 });
 
-                // Status badge
                 var statusBorder = new Border
                 {
                     CornerRadius = new CornerRadius(6),
@@ -57,7 +65,7 @@ public sealed partial class MonitorInfoPage : Page
                 };
                 statusBorder.Child = new TextBlock
                 {
-                    Text = mon.DriverStatus == "Active" ? "🟢 Active" : "⚫ Inactive",
+                    Text = mon.DriverStatus == "Active" ? "Active" : "Inactive",
                     Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
                     FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                     FontSize = 13
@@ -84,7 +92,7 @@ public sealed partial class MonitorInfoPage : Page
                     ("", ""),
                     ("Manufacture Date", mon.ManufactureDate),
                     ("Year", mon.YearOfManufacture),
-                    ("📊 Estimated Usage", mon.EstimatedUsage),
+                    ("Estimated Usage", mon.EstimatedUsage),
                 };
 
                 foreach (var (label, value) in infoRows)
@@ -116,21 +124,18 @@ public sealed partial class MonitorInfoPage : Page
                     stack.Children.Add(row);
                 }
 
-                // Supported resolutions expander
                 if (mon.SupportedResolutions.Count > 0)
                 {
                     var expander = new Expander
                     {
-                        Header = $"📺 Supported Resolutions ({mon.SupportedResolutions.Count})",
+                        Header = $"Supported Resolutions ({mon.SupportedResolutions.Count})",
                         HorizontalAlignment = HorizontalAlignment.Stretch,
                         HorizontalContentAlignment = HorizontalAlignment.Stretch
                     };
 
                     var resList = new StackPanel { Spacing = 4 };
                     foreach (var res in mon.SupportedResolutions)
-                    {
-                        resList.Children.Add(new TextBlock { Text = $"  • {res}", FontSize = 13 });
-                    }
+                        resList.Children.Add(new TextBlock { Text = $"  - {res}", FontSize = 13 });
                     expander.Content = resList;
                     stack.Children.Add(expander);
                 }
@@ -140,11 +145,11 @@ public sealed partial class MonitorInfoPage : Page
                 monIdx++;
             }
 
-            StatusText.Text = $"✅ Loaded {monitors.Count} monitor(s) at {DateTime.Now:HH:mm:ss}";
+            StatusText.Text = $"Loaded {monitors.Count} monitor(s) at {DateTime.Now:HH:mm:ss}";
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"❌ Error: {ex.Message}";
+            StatusText.Text = $"Error: {ex.Message}";
         }
         finally
         {

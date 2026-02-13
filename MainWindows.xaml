@@ -6,39 +6,34 @@
     Title="SystemReview">
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
         <NavigationView x:Name="NavView"
                         IsBackButtonVisible="Collapsed"
                         PaneDisplayMode="Top"
-                        SelectionChanged="NavView_SelectionChanged">
+                        SelectionChanged="NavView_SelectionChanged"
+                        IsSettingsVisible="True">
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="System Specs" Tag="specs">
-                    <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Setting"/>
-                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE950;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Disk Health" Tag="diskhealth">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xEDA2;"/>
-                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xEDA2;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Monitor Info" Tag="monitor">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE7F4;"/>
-                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7F4;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Networking" Tag="network">
-                    <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Globe"/>
-                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE774;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Diagnostics" Tag="diagnostics">
-                    <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Repair"/>
-                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE90F;"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
 
-            <Frame x:Name="ContentFrame" Padding="12"/>
+            <Frame x:Name="ContentFrame" Padding="0"/>
         </NavigationView>
     </Grid>
 </Window>

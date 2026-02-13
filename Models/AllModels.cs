@@ -1,7 +1,7 @@
 namespace SystemReview.Models;
 
 public record CpuInfo(string Name, int Cores, int LogicalProcessors, string MaxSpeed, string Architecture);
-public record GpuInfo(string Name, string DriverVersion, string AdapterRam, string VideoProcessor);
+public record GpuInfo(string Name, string DriverVersion, string AdapterRam, string VideoProcessor, string Resolution, string RefreshRate, string BitsPerPixel, string Status, string DriverDate);
 public record DriveInfoModel(string Name, string Label, string DriveType, string FileSystem, string TotalSize, string FreeSpace, double UsedPercent);
 public record NetworkAdapterInfo(string Name, string Description, string Status, string Speed, string MacAddress, string AdapterType);
 public record PingResultModel(string Host, string Status, long RoundtripMs, int Ttl, string Timestamp);
@@ -11,7 +11,6 @@ public record DnsResultModel(string HostName, string AddressFamily, string Addre
 public record EventLogEntryModel(string Source, string Level, string Message, DateTime TimeGenerated, long InstanceId);
 public record ServiceInfoModel(string Name, string DisplayName, string Status, string StartType);
 
-// NEW: Disk health via S.M.A.R.T.
 public record DiskHealthModel(
     string DeviceId,
     string Model,
@@ -36,7 +35,6 @@ public record DiskHealthModel(
 
 public record SmartAttribute(int Id, string Name, int Current, int Worst, int Threshold, long RawValue, string Status);
 
-// NEW: Monitor info via EDID
 public record MonitorDetailModel(
     string Name,
     string Manufacturer,

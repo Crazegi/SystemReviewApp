@@ -8,9 +8,19 @@ namespace SystemReview.Views;
 
 public sealed partial class DiskHealthPage : Page
 {
+    private bool _loaded;
+
     public DiskHealthPage()
     {
         this.InitializeComponent();
+        this.Loaded += async (_, _) =>
+        {
+            if (!_loaded && SettingsPage.AutoLoadEnabled)
+            {
+                _loaded = true;
+                RefreshBtn_Click(this, new RoutedEventArgs());
+            }
+        };
     }
 
     private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
@@ -36,7 +46,6 @@ public sealed partial class DiskHealthPage : Page
 
                 var stack = new StackPanel { Spacing = 12 };
 
-                // Header
                 var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
                 header.Children.Add(new FontIcon { Glyph = "\xEDA2", FontSize = 22 });
                 header.Children.Add(new TextBlock
@@ -45,15 +54,14 @@ public sealed partial class DiskHealthPage : Page
                     Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"]
                 });
 
-                // Health badge
                 var healthBorder = new Border
                 {
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(12, 4, 12, 4),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Background = disk.HealthStatus.Contains("✅")
+                    Background = disk.HealthStatus.Contains("Healthy")
                         ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 124, 16))
-                        : disk.HealthStatus.Contains("⚠️")
+                        : disk.HealthStatus.Contains("Warning")
                             ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 150, 0))
                             : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 196, 43, 28))
                 };
@@ -67,7 +75,6 @@ public sealed partial class DiskHealthPage : Page
                 header.Children.Add(healthBorder);
                 stack.Children.Add(header);
 
-                // Info grid
                 var infoRows = new (string Label, string Value)[]
                 {
                     ("Serial Number", disk.SerialNumber),
@@ -77,16 +84,16 @@ public sealed partial class DiskHealthPage : Page
                     ("Capacity", disk.SizeFormatted),
                     ("Status", disk.Status),
                     ("", ""),
-                    ("⏱️ Power-On Time", disk.PowerOnHours),
-                    ("📅 Power-On (Days)", disk.PowerOnDays),
-                    ("🔄 Power Cycles", disk.PowerCycleCount),
-                    ("🌡️ Temperature", disk.Temperature),
+                    ("Power-On Time", disk.PowerOnHours),
+                    ("Power-On (Days)", disk.PowerOnDays),
+                    ("Power Cycles", disk.PowerCycleCount),
+                    ("Temperature", disk.Temperature),
                     ("", ""),
-                    ("⚠️ Reallocated Sectors", disk.ReallocatedSectors),
-                    ("⏳ Pending Sectors", disk.PendingSectors),
-                    ("❌ Uncorrectable", disk.UncorrectableSectors),
-                    ("📖 Read Error Rate", disk.ReadErrorRate),
-                    ("🔁 Spin Retry Count", disk.SpinRetryCount),
+                    ("Reallocated Sectors", disk.ReallocatedSectors),
+                    ("Pending Sectors", disk.PendingSectors),
+                    ("Uncorrectable", disk.UncorrectableSectors),
+                    ("Read Error Rate", disk.ReadErrorRate),
+                    ("Spin Retry Count", disk.SpinRetryCount),
                 };
 
                 foreach (var (label, value) in infoRows)
@@ -111,8 +118,6 @@ public sealed partial class DiskHealthPage : Page
                     Grid.SetColumn(lbl, 0);
 
                     var val = new TextBlock { Text = value, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
-
-                    // Color critical values
                     if (label.Contains("Reallocated") || label.Contains("Pending") || label.Contains("Uncorrectable"))
                     {
                         if (value != "0" && value != "N/A")
@@ -125,19 +130,17 @@ public sealed partial class DiskHealthPage : Page
                     stack.Children.Add(row);
                 }
 
-                // S.M.A.R.T. attributes expander
                 if (disk.AllAttributes.Count > 0)
                 {
                     var expander = new Expander
                     {
-                        Header = $"📊 All S.M.A.R.T. Attributes ({disk.AllAttributes.Count})",
+                        Header = $"All S.M.A.R.T. Attributes ({disk.AllAttributes.Count})",
                         HorizontalAlignment = HorizontalAlignment.Stretch,
                         HorizontalContentAlignment = HorizontalAlignment.Stretch
                     };
 
                     var attrStack = new StackPanel { Spacing = 2 };
 
-                    // Header row
                     var hdrRow = new Grid { ColumnSpacing = 8, Padding = new Thickness(0, 4, 0, 8) };
                     hdrRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(35) });
                     hdrRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
@@ -189,11 +192,11 @@ public sealed partial class DiskHealthPage : Page
                 DiskPanel.Children.Add(card);
             }
 
-            StatusText.Text = $"✅ Loaded {disks.Count} disk(s) at {DateTime.Now:HH:mm:ss}";
+            StatusText.Text = $"Loaded {disks.Count} disk(s) at {DateTime.Now:HH:mm:ss}";
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"❌ Error: {ex.Message}";
+            StatusText.Text = $"Error: {ex.Message}";
         }
         finally
         {

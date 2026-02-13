@@ -15,8 +15,22 @@ public sealed partial class MainWindow : Window
         NavView.SelectedItem = NavView.MenuItems[0];
     }
 
+    public void SetTheme(ElementTheme theme)
+    {
+        if (ContentFrame.Content is FrameworkElement fe)
+            fe.RequestedTheme = theme;
+        if (Content is FrameworkElement root)
+            root.RequestedTheme = theme;
+    }
+
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        if (args.IsSettingsSelected)
+        {
+            ContentFrame.Navigate(typeof(SettingsPage));
+            return;
+        }
+
         if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
         {
             ContentFrame.Navigate(tag switch
