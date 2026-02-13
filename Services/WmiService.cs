@@ -213,4 +213,87 @@ public static class WmiService
         12 => "ARM64",
         _ => $"Unknown ({arch})"
     };
+
+        public static Task<Dictionary<string, string>> GetBatteryInfoAsync() => Task.Run(() =>
+    {
+        var info = new Dictionary<string, string>();
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Battery");
+            var results = searcher.Get();
+            if (results.Count == 0)
+            {
+                info["Status"] = "No battery detected (Desktop PC)";
+                return info;
+            }
+            foreach (var obj in results)
+            {
+                info["Name"] = obj["Name"]?.ToString() ?? "N/A";
+                info["Status"] = obj["Status"]?.ToString() ?? "N/A";
+                info["Charge"] = $"{obj["EstimatedChargeRemaining"]}%";
+                var runTime = obj["EstimatedRunTime"];
+                info["Est. Runtime"] = runTime != null && Convert.ToInt64(runTime) < 71582788
+                    ? $"{Convert.ToInt64(runTime)} min"
+                    : "Charging / AC Power";
+                info["Chemistry"] = (Convert.ToInt32(obj["Chemistry"] ?? 0)) switch
+                {
+                    1 => "Other",
+                    2 => "Unknown",
+                    3 => "Lead Acid",
+                    4 => "Nickel Cadmium",
+                    5 => "Nickel Metal Hydride",
+                    6 => "Lithium-ion",
+                    7 => "Zinc Air",
+                    8 => "Lithium Polymer",
+                    _ => "N/A"
+                };
+                info["Design Voltage"] = $"{obj["DesignVoltage"]} mV";
+            }
+        }
+        catch (Exception ex) { info["Error"] = ex.Message; }
+        return info;
+    });
+
+    public static Task<List<KeyValuePair<string, string>>> GetInstalledSoftwareAsync() => Task.Run(() =>
+    {
+        var list = new List<KeyValuePair<string, string>>();
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT Name, Version FROM Win32_Product");
+            var results = searcher.Get()
+                .Cast<ManagementObject>()
+                .Where(o => o["Name"] != null)
+                .OrderBy(o => o["Name"]?.ToString())
+                .Take(20);
+
+            foreach (var obj in results)
+            {
+                var name = obj["Name"]?.ToString() ?? "Unknown";
+                var version = obj["Version"]?.ToString() ?? "";
+                list.Add(new(name, version));
+            }
+
+            if (list.Count == 0)
+            {
+                // Fallback: read from registry via WMI
+                using var regSearcher = new ManagementObjectSearcher(
+                    @"SELECT * FROM Win32_InstalledWin32Program");
+                foreach (var obj in regSearcher.Get().Cast<ManagementObject>()
+                    .Where(o => o["Name"] != null)
+                    .OrderBy(o => o["Name"]?.ToString())
+                    .Take(20))
+                {
+                    list.Add(new(
+                        obj["Name"]?.ToString() ?? "Unknown",
+                        obj["Version"]?.ToString() ?? ""
+                    ));
+                }
+            }
+        }
+        catch (Exception ex) { list.Add(new("Error loading software", ex.Message)); }
+        return list;
+    });
+
+
 }

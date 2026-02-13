@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="SystemReview.Views.DiagnosticsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -11,18 +11,17 @@
                     <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Button x:ConnectionId='11' x:Name="RefreshBtn" Content="🔄 Refresh"                          Grid.Column="0" Style="{StaticResource AccentButtonStyle}"/>
-                <Button x:ConnectionId='12' x:Name="MonitorBtn" Content="⏱️ Start Monitor"                          Grid.Column="1"/>
-                <Button x:ConnectionId='13' x:Name="DiagBtn" Content="🩺 Run Diagnostics"                       Grid.Column="2"/>
-                <Button x:ConnectionId='14' Content="📋 Export JSON"                             Grid.Column="3"/>
-                <Button x:ConnectionId='15' Content="📝 Export Text"                             Grid.Column="4"/>
-                <TextBlock x:ConnectionId='16' x:Name="StatusText" Grid.Column="5" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                <Button x:Name="RefreshBtn" Content="🔄 Refresh" Click="RefreshBtn_Click" Grid.Column="0" Style="{StaticResource AccentButtonStyle}"/>
+                <Button x:Name="MonitorBtn" Content="⏱️ Start Monitor" Click="MonitorBtn_Click" Grid.Column="1"/>
+                <Button x:Name="DiagBtn" Content="🩺 Run Diagnostics" Click="DiagBtn_Click" Grid.Column="2"/>
+                <Button Content="📋 Export JSON" Click="ExportJsonBtn_Click" Grid.Column="3"/>
+                <Button Content="📝 Export Text" Click="ExportTextBtn_Click" Grid.Column="4"/>
+                <TextBlock x:Name="StatusText" Grid.Column="5" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
             </Grid>
-            <ProgressBar x:ConnectionId='2' x:Name="LoadingBar" IsIndeterminate="True" Visibility="Collapsed"/>
+            <ProgressBar x:Name="LoadingBar" IsIndeterminate="True" Visibility="Collapsed"/>
 
-            <!-- Performance Counters -->
             <TextBlock Text="📈 Performance Counters" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='3' x:Name="PerfList" SelectionMode="None" MaxHeight="200">
+            <ListView x:Name="PerfList" SelectionMode="None" MaxHeight="200">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Orientation="Horizontal" Spacing="8" Padding="4">
@@ -33,9 +32,8 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <!-- Event Logs -->
             <TextBlock Text="📋 Recent Event Logs (Errors/Warnings)" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='4' x:Name="EventLogList" SelectionMode="None" MaxHeight="350">
+            <ListView x:Name="EventLogList" SelectionMode="None" MaxHeight="350">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Padding="8" Spacing="4">
@@ -50,9 +48,8 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <!-- Services -->
             <TextBlock Text="⚙️ Network Services" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='5' x:Name="ServiceList" SelectionMode="None" MaxHeight="350">
+            <ListView x:Name="ServiceList" SelectionMode="None" MaxHeight="350">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <Grid Padding="4" ColumnSpacing="12">
@@ -68,9 +65,8 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <!-- Diagnostic Log -->
             <TextBlock Text="🩺 Diagnostic Log" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='6' x:Name="DiagLogList" SelectionMode="None" MaxHeight="400">
+            <ListView x:Name="DiagLogList" SelectionMode="None" MaxHeight="400">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12" Padding="2" TextWrapping="Wrap"/>
@@ -80,4 +76,3 @@
         </StackPanel>
     </ScrollViewer>
 </Page>
-

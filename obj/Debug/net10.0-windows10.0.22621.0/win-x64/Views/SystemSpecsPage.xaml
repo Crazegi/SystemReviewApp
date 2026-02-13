@@ -4,129 +4,374 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <ScrollViewer Padding="16">
-        <StackPanel Spacing="16">
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Button x:ConnectionId='17' x:Name="RefreshBtn" Content="🔄 Refresh All"                          Grid.Column="0" Style="{StaticResource AccentButtonStyle}"/>
-                <Button x:ConnectionId='18' x:Name="ExportJsonBtn" Content="📋 Export JSON"                             Grid.Column="1"/>
-                <Button x:ConnectionId='19' x:Name="ExportTextBtn" Content="📝 Export Text"                             Grid.Column="2"/>
-                <TextBlock x:ConnectionId='20' x:Name="StatusText" Grid.Column="3" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
-            </Grid>
-            <ProgressBar x:ConnectionId='2' x:Name="LoadingBar" IsIndeterminate="True" Visibility="Collapsed"/>
+    <Grid>
+        <!-- Top Command Bar -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-            <!-- CPU -->
-            <TextBlock Text="🖥️ Processor (CPU)" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='3' x:Name="CpuList" SelectionMode="None">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Padding="8" ColumnSpacing="16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Name}" Grid.Column="0" TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding Cores, Converter={x:Null}}" Grid.Column="1"/>
-                            <TextBlock Text="{Binding MaxSpeed}" Grid.Column="2"/>
-                            <TextBlock Text="{Binding Architecture}" Grid.Column="3"/>
+        <Grid Grid.Row="0" Padding="20,16,20,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button x:ConnectionId='25' x:Name="RefreshBtn"                          Grid.Column="0" Style="{StaticResource AccentButtonStyle}" Padding="16,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE72C;" FontSize="14"/>
+                    <TextBlock Text="Refresh All"/>
+                </StackPanel>
+            </Button>
+            <Button x:ConnectionId='26' x:Name="ExportJsonBtn"                             Grid.Column="1" Margin="8,0,0,0" Padding="16,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8B7;" FontSize="14"/>
+                    <TextBlock Text="Export JSON"/>
+                </StackPanel>
+            </Button>
+            <Button x:ConnectionId='27' x:Name="ExportTextBtn"                             Grid.Column="2" Margin="8,0,0,0" Padding="16,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8A5;" FontSize="14"/>
+                    <TextBlock Text="Export Text"/>
+                </StackPanel>
+            </Button>
+            <TextBlock x:ConnectionId='28' x:Name="StatusText" Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right"
+                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" FontSize="12"/>
+        </Grid>
+
+        <ProgressBar x:ConnectionId='2' x:Name="LoadingBar" Grid.Row="1" IsIndeterminate="True" Visibility="Collapsed" Margin="20,0"/>
+
+        <!-- Scrollable Content -->
+        <ScrollViewer Grid.Row="2" Padding="20,8,20,20">
+            <StackPanel Spacing="16">
+
+                <!-- ══════════ CPU CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE950;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Processor (CPU)" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        </StackPanel>
+
+                        <ListView x:ConnectionId='23' x:Name="CpuList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="8,12" ColumnSpacing="4" RowSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Text="Name" Grid.Row="0" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Name}" Grid.Row="0" Grid.Column="1" FontWeight="SemiBold" TextWrapping="Wrap"/>
+
+                                        <TextBlock Text="Cores" Grid.Row="1" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Cores}" Grid.Row="1" Grid.Column="1"/>
+
+                                        <TextBlock Text="Logical Procs" Grid.Row="2" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding LogicalProcessors}" Grid.Row="2" Grid.Column="1"/>
+
+                                        <TextBlock Text="Max Speed" Grid.Row="3" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding MaxSpeed}" Grid.Row="3" Grid.Column="1"/>
+
+                                        <TextBlock Text="Architecture" Grid.Row="4" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Architecture}" Grid.Row="4" Grid.Column="1"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════ RAM CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xEC4E;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Memory (RAM)" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        </StackPanel>
+
+                        <!-- RAM bar visual -->
+                        <Grid x:ConnectionId='17' x:Name="RamBarGrid" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <ProgressBar x:ConnectionId='21' x:Name="RamUsageBar" Grid.Row="0" Maximum="100" Height="24" CornerRadius="4"/>
+                            <TextBlock x:ConnectionId='22' x:Name="RamUsageText" Grid.Row="1" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" FontSize="12"/>
                         </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
 
-            <!-- RAM -->
-            <TextBlock Text="🧠 Memory (RAM)" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='4' x:Name="RamList" SelectionMode="None">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="8" Padding="8">
-                            <TextBlock Text="{Binding Key}" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding Value}"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-
-            <!-- GPU -->
-            <TextBlock Text="🎮 Graphics (GPU)" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='5' x:Name="GpuList" SelectionMode="None">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Padding="8" ColumnSpacing="16">
+                        <Grid x:ConnectionId='18' ColumnSpacing="16" RowSpacing="8" x:Name="RamGrid">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Name}" Grid.Column="0" TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding DriverVersion}" Grid.Column="1"/>
-                            <TextBlock Text="{Binding AdapterRam}" Grid.Column="2"/>
                         </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
 
-            <!-- Drives -->
-            <TextBlock Text="💾 Storage Drives" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='6' x:Name="DriveList" SelectionMode="None">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Padding="8" ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/><ColumnDefinition Width="100"/><ColumnDefinition Width="100"/><ColumnDefinition Width="80"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Name}" Grid.Column="0" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding Label}" Grid.Column="1"/>
-                            <TextBlock Text="{Binding FileSystem}" Grid.Column="2"/>
-                            <TextBlock Text="{Binding TotalSize}" Grid.Column="3"/>
-                            <TextBlock Text="{Binding FreeSpace}" Grid.Column="4"/>
-                            <ProgressBar Value="{Binding UsedPercent}" Maximum="100" Grid.Column="5" VerticalAlignment="Center"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                        <ListView x:ConnectionId='19' x:Name="RamList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="4,6" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Value}" Grid.Column="1" FontWeight="SemiBold"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
 
-            <!-- OS -->
-            <TextBlock Text="🪟 Operating System" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='7' x:Name="OsList" SelectionMode="None">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="8" Padding="8">
-                            <TextBlock Text="{Binding Key}" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding Value}"/>
+                <!-- ══════════ GPU CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE7F8;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Graphics (GPU)" Style="{StaticResource SubtitleTextBlockStyle}"/>
                         </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
 
-            <!-- Motherboard -->
-            <TextBlock Text="🔧 Motherboard / BIOS" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='8' x:Name="MbList" SelectionMode="None">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="8" Padding="8">
-                            <TextBlock Text="{Binding Key}" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding Value}"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                        <ListView x:ConnectionId='15' x:Name="GpuList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="8,12" ColumnSpacing="4" RowSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                                        </Grid.RowDefinitions>
 
-            <!-- Display -->
-            <TextBlock Text="🖥️ Display" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <ListView x:ConnectionId='9' x:Name="DisplayList" SelectionMode="None">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="8" Padding="8">
-                            <TextBlock Text="{Binding Key}" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding Value}"/>
+                                        <TextBlock Text="Name" Grid.Row="0" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Name}" Grid.Row="0" Grid.Column="1" FontWeight="SemiBold" TextWrapping="Wrap"/>
+
+                                        <TextBlock Text="Driver" Grid.Row="1" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding DriverVersion}" Grid.Row="1" Grid.Column="1"/>
+
+                                        <TextBlock Text="VRAM" Grid.Row="2" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding AdapterRam}" Grid.Row="2" Grid.Column="1"/>
+
+                                        <TextBlock Text="Processor" Grid.Row="3" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding VideoProcessor}" Grid.Row="3" Grid.Column="1"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════ STORAGE CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xEDA2;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Storage Drives" Style="{StaticResource SubtitleTextBlockStyle}"/>
                         </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </StackPanel>
-    </ScrollViewer>
+
+                        <ListView x:ConnectionId='13' x:Name="DriveList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                            CornerRadius="6" Padding="16,12" Margin="0,4">
+                                        <Grid RowSpacing="8">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Drive header row -->
+                                            <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+                                                <FontIcon Glyph="&#xE7F8;" FontSize="14"/>
+                                                <TextBlock FontWeight="Bold" FontSize="15">
+                                                    <Run Text="{Binding Name}"/>
+                                                    <Run Text=" "/>
+                                                    <Run Text="{Binding Label}"/>
+                                                </TextBlock>
+                                                <Border Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="4" Padding="8,2">
+                                                    <TextBlock Text="{Binding DriveType}" FontSize="11" Foreground="White"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding FileSystem}" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Usage bar -->
+                                            <TextBlock Text="Used" Grid.Row="1" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" VerticalAlignment="Center"/>
+                                            <Grid Grid.Row="1" Grid.Column="1">
+                                                <ProgressBar Value="{Binding UsedPercent}" Maximum="100" Height="18" CornerRadius="4"/>
+                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11">
+                                                    <Run Text="{Binding UsedPercent}"/><Run Text="%"/>
+                                                </TextBlock>
+                                            </Grid>
+
+                                            <TextBlock Text="Total" Grid.Row="2" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                            <TextBlock Text="{Binding TotalSize}" Grid.Row="2" Grid.Column="1" FontWeight="SemiBold"/>
+
+                                            <TextBlock Text="Free" Grid.Row="3" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                            <TextBlock Text="{Binding FreeSpace}" Grid.Row="3" Grid.Column="1" FontWeight="SemiBold"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════ OS CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE770;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Operating System" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        </StackPanel>
+
+                        <ListView x:ConnectionId='11' x:Name="OsList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="4,6" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Value}" Grid.Column="1" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════ MOTHERBOARD / BIOS CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE964;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Motherboard / BIOS" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        </StackPanel>
+
+                        <ListView x:ConnectionId='9' x:Name="MbList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="4,6" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Value}" Grid.Column="1" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════ DISPLAY CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE7F4;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Display" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        </StackPanel>
+
+                        <ListView x:ConnectionId='7' x:Name="DisplayList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="4,6" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Value}" Grid.Column="1" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════ BATTERY CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE83F;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Battery" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        </StackPanel>
+                        <ListView x:ConnectionId='5' x:Name="BatteryList" SelectionMode="None" Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="4,6" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}" Grid.Column="0" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                        <TextBlock Text="{Binding Value}" Grid.Column="1" FontWeight="SemiBold"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════ INSTALLED SOFTWARE CARD ══════════ -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE71D;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Installed Programs (Top 20)" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        </StackPanel>
+                        <ListView x:ConnectionId='3' x:Name="SoftwareList" SelectionMode="None" Padding="0" MaxHeight="400">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="4,6" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="100"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}" Grid.Column="0" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Value}" Grid.Column="1" Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" FontSize="12"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+
+                <!-- Bottom spacer -->
+                <Border Height="20"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </Page>
 

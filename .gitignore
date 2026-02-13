@@ -1,0 +1,48 @@
+## Build output
+bin/
+obj/
+
+## User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## Visual Studio
+.vs/
+*.rsuser
+*.csproj.user
+
+## VS Code
+.vscode/
+
+## Rider
+.idea/
+
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+## OS generated
+.DS_Store
+*.swp
+*.swo
+*~
+
+## Publish output
+publish/
+
+## Debug logs
+*.log
+*.etl
+
+## sxstrace files
+sxs.*
+sxstrace.*

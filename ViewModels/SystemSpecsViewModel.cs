@@ -11,9 +11,11 @@ public class SystemSpecsViewModel : ObservableObject
 {
     private string _statusMessage = "Ready. Click Refresh to load system specs.";
     private bool _isLoading;
+    private int _ramUsagePercent;
 
     public string StatusMessage { get => _statusMessage; set => SetProperty(ref _statusMessage, value); }
     public bool IsLoading { get => _isLoading; set => SetProperty(ref _isLoading, value); }
+    public int RamUsagePercent { get => _ramUsagePercent; set => SetProperty(ref _ramUsagePercent, value); }
 
     public ObservableCollection<CpuInfo> Cpus { get; } = [];
     public ObservableCollection<GpuInfo> Gpus { get; } = [];
@@ -22,6 +24,8 @@ public class SystemSpecsViewModel : ObservableObject
     public ObservableCollection<KeyValuePair<string, string>> OsDetails { get; } = [];
     public ObservableCollection<KeyValuePair<string, string>> MotherboardDetails { get; } = [];
     public ObservableCollection<KeyValuePair<string, string>> DisplayDetails { get; } = [];
+    public ObservableCollection<KeyValuePair<string, string>> BatteryDetails { get; } = [];
+    public ObservableCollection<KeyValuePair<string, string>> InstalledSoftware { get; } = [];
 
     public AsyncRelayCommand RefreshCommand { get; }
     public AsyncRelayCommand ExportJsonCommand { get; }
@@ -48,14 +52,17 @@ public class SystemSpecsViewModel : ObservableObject
             var mbTask = WmiService.GetMotherboardInfoAsync();
             var osTask = WmiService.GetOsInfoAsync();
             var displayTask = WmiService.GetDisplayInfoAsync();
+            var batteryTask = WmiService.GetBatteryInfoAsync();
+            var softwareTask = WmiService.GetInstalledSoftwareAsync();
 
-            await Task.WhenAll(cpuTask, ramTask, gpuTask, driveTask, mbTask, osTask, displayTask);
+            await Task.WhenAll(cpuTask, ramTask, gpuTask, driveTask, mbTask, osTask, displayTask, batteryTask, softwareTask);
 
             Cpus.Clear();
             foreach (var c in cpuTask.Result) Cpus.Add(c);
 
             RamDetails.Clear();
             var (total, avail, pct) = ramTask.Result;
+            RamUsagePercent = pct;
             RamDetails.Add(new("Total RAM", total));
             RamDetails.Add(new("Available RAM", avail));
             RamDetails.Add(new("Usage", $"{pct}%"));
@@ -76,11 +83,17 @@ public class SystemSpecsViewModel : ObservableObject
             foreach (var disp in displayTask.Result)
                 foreach (var kv in disp) DisplayDetails.Add(kv);
 
-            StatusMessage = $"Loaded at {DateTime.Now:HH:mm:ss}";
+            BatteryDetails.Clear();
+            foreach (var kv in batteryTask.Result) BatteryDetails.Add(kv);
+
+            InstalledSoftware.Clear();
+            foreach (var kv in softwareTask.Result) InstalledSoftware.Add(kv);
+
+            StatusMessage = $"✅ Loaded at {DateTime.Now:HH:mm:ss}";
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
+            StatusMessage = $"❌ Error: {ex.Message}";
         }
         finally
         {
@@ -100,7 +113,9 @@ public class SystemSpecsViewModel : ObservableObject
                 ["Drives"] = Drives.ToList(),
                 ["Motherboard"] = MotherboardDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
                 ["OS"] = OsDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
-                ["Display"] = DisplayDetails.ToDictionary(kv => kv.Key, kv => kv.Value)
+                ["Display"] = DisplayDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
+                ["Battery"] = BatteryDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
+                ["InstalledSoftware"] = InstalledSoftware.ToDictionary(kv => kv.Key, kv => kv.Value)
             };
 
             var filename = $"SystemReview_Specs_{DateTime.Now:yyyyMMdd_HHmmss}";
@@ -111,50 +126,63 @@ public class SystemSpecsViewModel : ObservableObject
                 var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
                 var path = Path.Combine(desktop, $"{filename}.json");
                 await File.WriteAllTextAsync(path, json);
-                StatusMessage = $"Exported to {path}";
+                StatusMessage = $"✅ Exported to {path}";
             }
             else
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("╔══════════════════════════════════════════╗");
-                sb.AppendLine("║       SYSTEM REVIEW - SPECIFICATIONS     ║");
-                sb.AppendLine($"║  Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}            ║");
-                sb.AppendLine("╚══════════════════════════════════════════╝");
+                sb.AppendLine("╔══════════════════════════════════════════════╗");
+                sb.AppendLine("║       SYSTEM REVIEW — SPECIFICATIONS         ║");
+                sb.AppendLine($"║  Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}               ║");
+                sb.AppendLine("╚══════════════════════════════════════════════╝");
                 sb.AppendLine();
 
-                sb.AppendLine("── CPU ──────────────────────────");
+                sb.AppendLine("── CPU ─────────────────────────────");
                 foreach (var c in Cpus)
-                    sb.AppendLine($"  {c.Name} | Cores: {c.Cores} | Logical: {c.LogicalProcessors} | Speed: {c.MaxSpeed} | Arch: {c.Architecture}");
+                {
+                    sb.AppendLine($"  Name:           {c.Name}");
+                    sb.AppendLine($"  Cores:          {c.Cores}");
+                    sb.AppendLine($"  Logical Procs:  {c.LogicalProcessors}");
+                    sb.AppendLine($"  Max Speed:      {c.MaxSpeed}");
+                    sb.AppendLine($"  Architecture:   {c.Architecture}");
+                }
 
-                sb.AppendLine("\n── RAM ──────────────────────────");
-                foreach (var kv in RamDetails)
-                    sb.AppendLine($"  {kv.Key}: {kv.Value}");
+                sb.AppendLine("\n── RAM ─────────────────────────────");
+                foreach (var kv in RamDetails) sb.AppendLine($"  {kv.Key,-18} {kv.Value}");
 
-                sb.AppendLine("\n── GPU ──────────────────────────");
+                sb.AppendLine("\n── GPU ─────────────────────────────");
                 foreach (var g in Gpus)
-                    sb.AppendLine($"  {g.Name} | Driver: {g.DriverVersion} | VRAM: {g.AdapterRam}");
+                {
+                    sb.AppendLine($"  Name:           {g.Name}");
+                    sb.AppendLine($"  Driver:         {g.DriverVersion}");
+                    sb.AppendLine($"  VRAM:           {g.AdapterRam}");
+                    sb.AppendLine($"  Processor:      {g.VideoProcessor}");
+                }
 
-                sb.AppendLine("\n── Storage ──────────────────────");
+                sb.AppendLine("\n── Storage ─────────────────────────");
                 foreach (var d in Drives)
                     sb.AppendLine($"  {d.Name} [{d.Label}] {d.FileSystem} | Total: {d.TotalSize} | Free: {d.FreeSpace} | Used: {d.UsedPercent}%");
 
-                sb.AppendLine("\n── Motherboard / BIOS ──────────");
-                foreach (var kv in MotherboardDetails)
-                    sb.AppendLine($"  {kv.Key}: {kv.Value}");
+                sb.AppendLine("\n── Motherboard / BIOS ──────────────");
+                foreach (var kv in MotherboardDetails) sb.AppendLine($"  {kv.Key,-18} {kv.Value}");
 
-                sb.AppendLine("\n── Operating System ─────────────");
-                foreach (var kv in OsDetails)
-                    sb.AppendLine($"  {kv.Key}: {kv.Value}");
+                sb.AppendLine("\n── Operating System ────────────────");
+                foreach (var kv in OsDetails) sb.AppendLine($"  {kv.Key,-18} {kv.Value}");
 
-                sb.AppendLine("\n── Display ──────────────────────");
-                foreach (var kv in DisplayDetails)
-                    sb.AppendLine($"  {kv.Key}: {kv.Value}");
+                sb.AppendLine("\n── Display ─────────────────────────");
+                foreach (var kv in DisplayDetails) sb.AppendLine($"  {kv.Key,-18} {kv.Value}");
+
+                sb.AppendLine("\n── Battery ─────────────────────────");
+                foreach (var kv in BatteryDetails) sb.AppendLine($"  {kv.Key,-18} {kv.Value}");
+
+                sb.AppendLine("\n── Installed Software (Top 20) ─────");
+                foreach (var kv in InstalledSoftware) sb.AppendLine($"  {kv.Key,-40} {kv.Value}");
 
                 var path = Path.Combine(desktop, $"{filename}.txt");
                 await File.WriteAllTextAsync(path, sb.ToString());
-                StatusMessage = $"Exported to {path}";
+                StatusMessage = $"✅ Exported to {path}";
             }
         }
-        catch (Exception ex) { StatusMessage = $"Export error: {ex.Message}"; }
+        catch (Exception ex) { StatusMessage = $"❌ Export error: {ex.Message}"; }
     }
 }
