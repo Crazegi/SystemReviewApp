@@ -10,3 +10,52 @@ public record OpenPortInfo(string Protocol, string LocalAddress, int LocalPort, 
 public record DnsResultModel(string HostName, string AddressFamily, string Address);
 public record EventLogEntryModel(string Source, string Level, string Message, DateTime TimeGenerated, long InstanceId);
 public record ServiceInfoModel(string Name, string DisplayName, string Status, string StartType);
+
+// NEW: Disk health via S.M.A.R.T.
+public record DiskHealthModel(
+    string DeviceId,
+    string Model,
+    string SerialNumber,
+    string FirmwareRevision,
+    string InterfaceType,
+    string MediaType,
+    string SizeFormatted,
+    string Status,
+    string PowerOnHours,
+    string PowerOnDays,
+    string PowerCycleCount,
+    string Temperature,
+    string ReallocatedSectors,
+    string PendingSectors,
+    string UncorrectableSectors,
+    string ReadErrorRate,
+    string SpinRetryCount,
+    string HealthStatus,
+    List<SmartAttribute> AllAttributes
+);
+
+public record SmartAttribute(int Id, string Name, int Current, int Worst, int Threshold, long RawValue, string Status);
+
+// NEW: Monitor info via EDID
+public record MonitorDetailModel(
+    string Name,
+    string Manufacturer,
+    string ManufacturerCode,
+    string ProductCode,
+    string SerialNumber,
+    string ManufactureDate,
+    string EdidVersion,
+    string MaxResolution,
+    string ScreenSize,
+    string DiagonalInches,
+    string DisplayType,
+    string GammaValue,
+    string DpmsSupport,
+    string ColorBitDepth,
+    string YearOfManufacture,
+    string WeekOfManufacture,
+    string EstimatedUsage,
+    List<string> SupportedResolutions,
+    string ConnectionType,
+    string DriverStatus
+);

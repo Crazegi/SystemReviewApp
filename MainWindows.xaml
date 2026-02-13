@@ -16,6 +16,16 @@
                         <SymbolIcon Symbol="Setting"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="Disk Health" Tag="diskhealth">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEDA2;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Monitor Info" Tag="monitor">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7F4;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem Content="Networking" Tag="network">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Globe"/>

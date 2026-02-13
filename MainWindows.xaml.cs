@@ -22,6 +22,8 @@ public sealed partial class MainWindow : Window
             ContentFrame.Navigate(tag switch
             {
                 "specs" => typeof(SystemSpecsPage),
+                "diskhealth" => typeof(DiskHealthPage),
+                "monitor" => typeof(MonitorInfoPage),
                 "network" => typeof(NetworkingPage),
                 "diagnostics" => typeof(DiagnosticsPage),
                 _ => typeof(SystemSpecsPage)
