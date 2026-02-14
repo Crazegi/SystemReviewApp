@@ -8,13 +8,14 @@ using Microsoft.UI.Dispatching;
 
 namespace SystemReview.ViewModels;
 
-public class DiagnosticsViewModel : ObservableObject
+public class DiagnosticsViewModel : ObservableObject, IDisposable
 {
     private string _statusMessage = "Ready.";
     private bool _isLoading;
     private bool _isMonitoring;
     private CancellationTokenSource? _monitorCts;
     private DispatcherQueue? _dispatcherQueue;
+    private bool _disposed;
 
     public string StatusMessage { get => _statusMessage; set => SetProperty(ref _statusMessage, value); }
     public bool IsLoading { get => _isLoading; set => SetProperty(ref _isLoading, value); }
@@ -43,6 +44,16 @@ public class DiagnosticsViewModel : ObservableObject
     }
 
     public void SetDispatcher(DispatcherQueue dq) => _dispatcherQueue = dq;
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _monitorCts?.Cancel();
+        _monitorCts?.Dispose();
+        _monitorCts = null;
+        IsMonitoring = false;
+    }
 
     public async Task LoadAllAsync()
     {
@@ -75,6 +86,8 @@ public class DiagnosticsViewModel : ObservableObject
         if (IsMonitoring)
         {
             _monitorCts?.Cancel();
+            _monitorCts?.Dispose();
+            _monitorCts = null;
             IsMonitoring = false;
             StatusMessage = "Monitoring stopped.";
         }
@@ -127,7 +140,7 @@ public class DiagnosticsViewModel : ObservableObject
         {
             var data = new Dictionary<string, object>
             {
-                ["PerformanceCounters"] = PerfCounters.ToDictionary(kv => kv.Key, kv => kv.Value),
+                ["PerformanceCounters"] = ToSafeDictionary(PerfCounters),
                 ["EventLogs"] = EventLogs.ToList(),
                 ["Services"] = Services.ToList(),
                 ["DiagnosticLog"] = DiagnosticLog.ToList()
@@ -174,5 +187,15 @@ public class DiagnosticsViewModel : ObservableObject
             }
         }
         catch (Exception ex) { StatusMessage = $"Export error: {ex.Message}"; }
+    }
+
+    private static Dictionary<string, string> ToSafeDictionary(IEnumerable<KeyValuePair<string, string>> entries)
+    {
+        return entries
+            .GroupBy(kv => kv.Key)
+            .ToDictionary(
+                g => g.Key,
+                g => string.Join(" | ", g.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct())
+            );
     }
 }

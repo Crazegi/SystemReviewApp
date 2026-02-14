@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using SystemReview.ViewModels;
+using System.ComponentModel;
 
 namespace SystemReview.Views;
 
@@ -8,6 +9,7 @@ public sealed partial class SystemSpecsPage : Page
 {
     private readonly SystemSpecsViewModel _vm = new();
     private bool _loaded;
+    private readonly PropertyChangedEventHandler _propertyChangedHandler;
 
     public SystemSpecsPage()
     {
@@ -22,7 +24,7 @@ public sealed partial class SystemSpecsPage : Page
         BatteryList.ItemsSource = _vm.BatteryDetails;
         SoftwareList.ItemsSource = _vm.InstalledSoftware;
 
-        _vm.PropertyChanged += (_, e) =>
+        _propertyChangedHandler = (_, e) =>
         {
             if (e.PropertyName == nameof(_vm.StatusMessage))
                 StatusText.Text = _vm.StatusMessage;
@@ -35,6 +37,7 @@ public sealed partial class SystemSpecsPage : Page
                 RamUsageText.Text = $"{_vm.RamUsagePercent}% used";
             }
         };
+        _vm.PropertyChanged += _propertyChangedHandler;
 
         this.Loaded += async (_, _) =>
         {
@@ -43,6 +46,11 @@ public sealed partial class SystemSpecsPage : Page
                 _loaded = true;
                 await _vm.LoadAllAsync();
             }
+        };
+
+        this.Unloaded += (_, _) =>
+        {
+            _vm.PropertyChanged -= _propertyChangedHandler;
         };
     }
 

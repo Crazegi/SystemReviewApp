@@ -412,7 +412,7 @@ public static class WmiService
         var disks = new List<DiskHealthModel>();
         try
         {
-            var diskInfoMap = new Dictionary<string, (string Model, string Serial, string Firmware, string Interface, string MediaType, ulong Size, string Status)>();
+            var diskInfoList = new List<(string DeviceId, string PnpDeviceId, string Model, string Serial, string Firmware, string Interface, string MediaType, ulong Size, string Status)>();
 
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_DiskDrive"))
             {
@@ -421,6 +421,7 @@ public static class WmiService
                     var deviceId = obj["DeviceID"]?.ToString() ?? "";
                     var model = obj["Model"]?.ToString()?.Trim() ?? "Unknown";
                     var serial = obj["SerialNumber"]?.ToString()?.Trim() ?? "N/A";
+                    var pnpDeviceId = obj["PNPDeviceID"]?.ToString() ?? "";
                     var firmware = obj["FirmwareRevision"]?.ToString()?.Trim() ?? "N/A";
                     var iface = obj["InterfaceType"]?.ToString() ?? "N/A";
                     var mediaType = obj["MediaType"]?.ToString() ?? "Unknown";
@@ -430,11 +431,11 @@ public static class WmiService
                     if (mediaType.Contains("Fixed", StringComparison.OrdinalIgnoreCase))
                         mediaType = DetectMediaType(model, deviceId);
 
-                    diskInfoMap[deviceId] = (model, serial, firmware, iface, mediaType, size, status);
+                    diskInfoList.Add((deviceId, pnpDeviceId, model, serial, firmware, iface, mediaType, size, status));
                 }
             }
 
-            var smartDataMap = new Dictionary<int, List<SmartAttribute>>();
+            var smartDataMap = new Dictionary<string, List<SmartAttribute>>(StringComparer.OrdinalIgnoreCase);
             try
             {
                 var scope = new ManagementScope(@"\\.\root\WMI");
@@ -443,11 +444,13 @@ public static class WmiService
                 using var smartSearcher = new ManagementObjectSearcher(scope,
                     new ObjectQuery("SELECT * FROM MSStorageDriver_ATAPISmartData"));
 
-                int diskIndex = 0;
                 foreach (var obj in smartSearcher.Get())
                 {
                     var attributes = new List<SmartAttribute>();
                     var vendorSpecific = (byte[])obj["VendorSpecific"];
+                    var instanceName = NormalizeStorageInstance(obj["InstanceName"]?.ToString());
+                    if (string.IsNullOrWhiteSpace(instanceName))
+                        instanceName = $"UNKNOWN_{smartDataMap.Count}";
 
                     if (vendorSpecific != null && vendorSpecific.Length >= 30)
                     {
@@ -471,18 +474,17 @@ public static class WmiService
                             ));
                         }
                     }
-                    smartDataMap[diskIndex] = attributes;
-                    diskIndex++;
+                    smartDataMap[instanceName] = attributes;
                 }
 
                 using var threshSearcher = new ManagementObjectSearcher(scope,
                     new ObjectQuery("SELECT * FROM MSStorageDriver_FailurePredictThresholds"));
 
-                diskIndex = 0;
                 foreach (var obj in threshSearcher.Get())
                 {
                     var thresholds = (byte[])obj["VendorSpecific"];
-                    if (thresholds != null && smartDataMap.ContainsKey(diskIndex))
+                    var instanceName = NormalizeStorageInstance(obj["InstanceName"]?.ToString());
+                    if (thresholds != null && !string.IsNullOrWhiteSpace(instanceName) && smartDataMap.ContainsKey(instanceName))
                     {
                         var threshMap = new Dictionary<int, int>();
                         for (int i = 2; i + 12 <= thresholds.Length; i += 12)
@@ -493,25 +495,30 @@ public static class WmiService
                             threshMap[attrId] = threshold;
                         }
 
-                        var updated = smartDataMap[diskIndex].Select(a =>
+                        var updated = smartDataMap[instanceName].Select(a =>
                         {
                             var thresh = threshMap.GetValueOrDefault(a.Id, 0);
                             var status = a.Current > thresh ? "OK" : (a.Current > 0 ? "Warning" : "Critical");
                             return a with { Threshold = thresh, Status = status };
                         }).ToList();
 
-                        smartDataMap[diskIndex] = updated;
+                        smartDataMap[instanceName] = updated;
                     }
-                    diskIndex++;
                 }
             }
             catch { }
 
-            int idx = 0;
-            foreach (var kvp in diskInfoMap)
+            var unmatchedSmartKeys = new HashSet<string>(smartDataMap.Keys, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var disk in diskInfoList)
             {
-                var (model, serial, firmware, iface, mediaType, size, status) = kvp.Value;
-                var attrs = smartDataMap.GetValueOrDefault(idx, []);
+                var attrs = GetBestSmartAttributesForDisk(
+                    disk.PnpDeviceId,
+                    disk.Model,
+                    disk.Serial,
+                    smartDataMap,
+                    unmatchedSmartKeys
+                );
 
                 long powerOnHoursRaw = attrs.FirstOrDefault(a => a.Id == 9)?.RawValue ?? -1;
                 long powerCycleRaw = attrs.FirstOrDefault(a => a.Id == 12)?.RawValue ?? -1;
@@ -532,9 +539,9 @@ public static class WmiService
                 string podStr = powerOnHoursRaw >= 0 ? $"{powerOnHoursRaw / 24.0:F1} days ({powerOnHoursRaw / 8760.0:F2} years)" : "N/A";
 
                 disks.Add(new DiskHealthModel(
-                    DeviceId: kvp.Key, Model: model, SerialNumber: serial,
-                    FirmwareRevision: firmware, InterfaceType: iface, MediaType: mediaType,
-                    SizeFormatted: FormatBytes(size), Status: status,
+                    DeviceId: disk.DeviceId, Model: disk.Model, SerialNumber: disk.Serial,
+                    FirmwareRevision: disk.Firmware, InterfaceType: disk.Interface, MediaType: disk.MediaType,
+                    SizeFormatted: FormatBytes(disk.Size), Status: disk.Status,
                     PowerOnHours: pohStr, PowerOnDays: podStr,
                     PowerCycleCount: powerCycleRaw >= 0 ? $"{powerCycleRaw:N0}" : "N/A",
                     Temperature: tempRaw >= 0 ? $"{tempRaw & 0xFF} C / {(tempRaw & 0xFF) * 9 / 5 + 32} F" : "N/A",
@@ -545,7 +552,6 @@ public static class WmiService
                     SpinRetryCount: spinRetryRaw >= 0 ? $"{spinRetryRaw}" : "N/A",
                     HealthStatus: health, AllAttributes: attrs
                 ));
-                idx++;
             }
         }
         catch (Exception ex)
@@ -579,6 +585,65 @@ public static class WmiService
         if (m.Contains("SSD") || m.Contains("NVME") || m.Contains("SOLID")) return "SSD (Solid State)";
         if (m.Contains("HDD") || m.Contains("BARRACUDA") || m.Contains("CAVIAR")) return "HDD (Mechanical)";
         return "Fixed Disk";
+    }
+
+    private static List<SmartAttribute> GetBestSmartAttributesForDisk(
+        string pnpDeviceId,
+        string model,
+        string serial,
+        Dictionary<string, List<SmartAttribute>> smartDataMap,
+        HashSet<string> unmatchedSmartKeys)
+    {
+        if (smartDataMap.Count == 0) return [];
+
+        string pnp = NormalizeStorageToken(pnpDeviceId);
+        string modelToken = NormalizeStorageToken(model);
+        string serialToken = NormalizeStorageToken(serial);
+
+        string? bestKey = null;
+        int bestScore = 0;
+
+        foreach (var key in unmatchedSmartKeys)
+        {
+            int score = 0;
+            if (!string.IsNullOrEmpty(pnp) && (key.Contains(pnp, StringComparison.OrdinalIgnoreCase) || pnp.Contains(key, StringComparison.OrdinalIgnoreCase)))
+                score += 100;
+            if (modelToken.Length > 3 && key.Contains(modelToken, StringComparison.OrdinalIgnoreCase))
+                score += 20;
+            if (serialToken.Length > 3 && key.Contains(serialToken, StringComparison.OrdinalIgnoreCase))
+                score += 30;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestKey = key;
+            }
+        }
+
+        if (bestKey == null)
+            bestKey = unmatchedSmartKeys.FirstOrDefault();
+
+        if (bestKey == null || !smartDataMap.TryGetValue(bestKey, out var attrs))
+            return [];
+
+        unmatchedSmartKeys.Remove(bestKey);
+        return attrs;
+    }
+
+    private static string NormalizeStorageInstance(string? instanceName)
+    {
+        if (string.IsNullOrWhiteSpace(instanceName)) return string.Empty;
+        var trimmed = instanceName.Trim();
+        var suffixIndex = trimmed.LastIndexOf('_');
+        if (suffixIndex > 0 && int.TryParse(trimmed[(suffixIndex + 1)..], out _))
+            trimmed = trimmed[..suffixIndex];
+        return NormalizeStorageToken(trimmed);
+    }
+
+    private static string NormalizeStorageToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return new string(value.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
     }
 
     // ═══════════════════════════════════════════════════

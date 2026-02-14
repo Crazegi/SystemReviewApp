@@ -108,14 +108,14 @@ public class SystemSpecsViewModel : ObservableObject
             var data = new Dictionary<string, object>
             {
                 ["CPU"] = Cpus.ToList(),
-                ["RAM"] = RamDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
+                ["RAM"] = ToSafeDictionary(RamDetails),
                 ["GPU"] = Gpus.ToList(),
                 ["Drives"] = Drives.ToList(),
-                ["Motherboard"] = MotherboardDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
-                ["OS"] = OsDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
-                ["Display"] = DisplayDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
-                ["Battery"] = BatteryDetails.ToDictionary(kv => kv.Key, kv => kv.Value),
-                ["InstalledSoftware"] = InstalledSoftware.ToDictionary(kv => kv.Key, kv => kv.Value)
+                ["Motherboard"] = ToSafeDictionary(MotherboardDetails),
+                ["OS"] = ToSafeDictionary(OsDetails),
+                ["Display"] = ToSafeDictionary(DisplayDetails),
+                ["Battery"] = ToSafeDictionary(BatteryDetails),
+                ["InstalledSoftware"] = ToSafeDictionary(InstalledSoftware)
             };
 
             var filename = $"SystemReview_Specs_{DateTime.Now:yyyyMMdd_HHmmss}";
@@ -184,5 +184,15 @@ public class SystemSpecsViewModel : ObservableObject
             }
         }
         catch (Exception ex) { StatusMessage = $"❌ Export error: {ex.Message}"; }
+    }
+
+    private static Dictionary<string, string> ToSafeDictionary(IEnumerable<KeyValuePair<string, string>> entries)
+    {
+        return entries
+            .GroupBy(kv => kv.Key)
+            .ToDictionary(
+                g => g.Key,
+                g => string.Join(" | ", g.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct())
+            );
     }
 }

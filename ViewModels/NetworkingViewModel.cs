@@ -9,7 +9,7 @@ using Microsoft.UI.Dispatching;
 
 namespace SystemReview.ViewModels;
 
-public class NetworkingViewModel : ObservableObject
+public class NetworkingViewModel : ObservableObject, IDisposable
 {
     private string _statusMessage = "Ready.";
     private bool _isLoading;
@@ -17,6 +17,9 @@ public class NetworkingViewModel : ObservableObject
     private string _tracerouteHost = "8.8.8.8";
     private string _dnsHost = "www.microsoft.com";
     private DispatcherQueue? _dispatcherQueue;
+    private readonly NetworkAvailabilityChangedEventHandler _networkAvailabilityChangedHandler;
+    private readonly NetworkAddressChangedEventHandler _networkAddressChangedHandler;
+    private bool _disposed;
 
     public string StatusMessage { get => _statusMessage; set => SetProperty(ref _statusMessage, value); }
     public bool IsLoading { get => _isLoading; set => SetProperty(ref _isLoading, value); }
@@ -50,7 +53,7 @@ public class NetworkingViewModel : ObservableObject
         ExportJsonCommand = new AsyncRelayCommand(async _ => await ExportAsync(true));
         ExportTextCommand = new AsyncRelayCommand(async _ => await ExportAsync(false));
 
-        NetworkChange.NetworkAvailabilityChanged += (_, e) =>
+        _networkAvailabilityChangedHandler = (_, e) =>
         {
             _dispatcherQueue?.TryEnqueue(() =>
             {
@@ -59,7 +62,7 @@ public class NetworkingViewModel : ObservableObject
             });
         };
 
-        NetworkChange.NetworkAddressChanged += (_, _) =>
+        _networkAddressChangedHandler = (_, _) =>
         {
             _dispatcherQueue?.TryEnqueue(() =>
             {
@@ -67,9 +70,20 @@ public class NetworkingViewModel : ObservableObject
                 _ = LoadAllAsync();
             });
         };
+
+        NetworkChange.NetworkAvailabilityChanged += _networkAvailabilityChangedHandler;
+        NetworkChange.NetworkAddressChanged += _networkAddressChangedHandler;
     }
 
     public void SetDispatcher(DispatcherQueue dq) => _dispatcherQueue = dq;
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        NetworkChange.NetworkAvailabilityChanged -= _networkAvailabilityChangedHandler;
+        NetworkChange.NetworkAddressChanged -= _networkAddressChangedHandler;
+    }
 
     public async Task LoadAllAsync()
     {
@@ -156,13 +170,13 @@ public class NetworkingViewModel : ObservableObject
         {
             var data = new Dictionary<string, object>
             {
-                ["IPConfig"] = IpConfig.ToDictionary(kv => kv.Key, kv => kv.Value),
+                ["IPConfig"] = ToSafeDictionary(IpConfig),
                 ["Adapters"] = Adapters.ToList(),
                 ["PingResults"] = PingResults.ToList(),
                 ["Traceroute"] = TracerouteResults.ToList(),
                 ["OpenPorts"] = OpenPorts.ToList(),
                 ["DnsResults"] = DnsResults.ToList(),
-                ["NetworkStats"] = NetStats.ToDictionary(kv => kv.Key, kv => kv.Value)
+                ["NetworkStats"] = ToSafeDictionary(NetStats)
             };
 
             var filename = $"SystemReview_Network_{DateTime.Now:yyyyMMdd_HHmmss}";
@@ -209,5 +223,15 @@ public class NetworkingViewModel : ObservableObject
             }
         }
         catch (Exception ex) { StatusMessage = $"Export error: {ex.Message}"; }
+    }
+
+    private static Dictionary<string, string> ToSafeDictionary(IEnumerable<KeyValuePair<string, string>> entries)
+    {
+        return entries
+            .GroupBy(kv => kv.Key)
+            .ToDictionary(
+                g => g.Key,
+                g => string.Join(" | ", g.Select(x => x.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct())
+            );
     }
 }
