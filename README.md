@@ -2,17 +2,17 @@
 
 # 🖥️ SystemReview
 
-### A Modern Windows Desktop App for System Diagnostics & Network Analysis
+### A Modern Windows Desktop App for System Diagnostics, Hardware Health & Network Analysis
 
 [![WinUI 3](https://img.shields.io/badge/WinUI-3-blue?logo=microsoft)](https://microsoft.github.io/microsoft-ui-xaml/)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Windows App SDK](https://img.shields.io/badge/Windows%20App%20SDK-1.6-0078D4?logo=windows)](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows)](https://www.microsoft.com/windows)
 
-**SystemReview** is a feature-rich, production-ready WinUI 3 desktop application that provides comprehensive system hardware inspection, real-time networking diagnostics, performance monitoring, and exportable reports — all wrapped in a modern Fluent Design UI.
+**SystemReview** is a feature-rich WinUI 3 desktop application that provides comprehensive system hardware inspection, **S.M.A.R.T. disk health analysis**, **EDID monitor details**, real-time networking diagnostics, performance monitoring, theme switching, and exportable reports — all in a modern Fluent Design UI.
 
-[Features](#-features) · [Screenshots](#-screenshots) · [Installation](#-installation) · [Building from Source](#-building-from-source) · [Usage Guide](#-usage-guide) · [Architecture](#-architecture) · [Contributing](#-contributing)
+[Features](#-features) · [Screenshots](#-screenshots) · [Installation](#-installation) · [Building from Source](#-building-from-source) · [Usage Guide](#-usage-guide) · [Architecture](#%EF%B8%8F-architecture) · [Contributing](#-contributing)
 
 ---
 
@@ -26,19 +26,22 @@
 - [Installation](#-installation)
 - [Building from Source](#-building-from-source)
 - [Usage Guide](#-usage-guide)
-  - [System Specs Tab](#-system-specs-tab)
+  - [System Specs Tab](#%EF%B8%8F-system-specs-tab)
+  - [Disk Health Tab](#-disk-health-tab)
+  - [Monitor Info Tab](#%EF%B8%8F-monitor-info-tab)
   - [Networking Tab](#-networking-tab)
   - [Diagnostics Tab](#-diagnostics-tab)
+  - [Settings](#%EF%B8%8F-settings)
   - [Exporting Data](#-exporting-data)
-- [Architecture](#-architecture)
+- [Architecture](#%EF%B8%8F-architecture)
   - [Project Structure](#project-structure)
   - [Design Patterns](#design-patterns)
   - [Technology Stack](#technology-stack)
   - [API Reference](#apis--data-sources)
-- [Configuration](#-configuration)
+- [Configuration](#%EF%B8%8F-configuration)
 - [Troubleshooting](#-troubleshooting)
-- [Known Limitations](#-known-limitations)
-- [Roadmap](#-roadmap)
+- [Known Limitations](#%EF%B8%8F-known-limitations)
+- [Roadmap](#%EF%B8%8F-roadmap)
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Acknowledgments](#-acknowledgments)
@@ -52,13 +55,41 @@
 |---------|---------|
 | **CPU Information** | Processor name, physical cores, logical processors, max clock speed, architecture (x86/x64/ARM64) |
 | **Memory (RAM)** | Total installed RAM, available memory, usage percentage with visual progress bar |
-| **Graphics (GPU)** | GPU name, driver version, dedicated VRAM, video processor details; supports multiple GPUs |
+| **Graphics (GPU)** | GPU name, **accurate VRAM (supports >4 GB via registry)**, resolution, refresh rate, color depth, driver version & date |
 | **Storage Drives** | All mounted drives with volume label, file system type, total/free space, visual usage bar |
 | **Motherboard & BIOS** | Manufacturer, product name, serial number, BIOS version, BIOS manufacturer, release date |
 | **Operating System** | OS name, version, build number, architecture, install date, uptime, last boot time, machine/user name |
-| **Display** | Monitor names, resolutions (width × height), refresh rates, monitor types |
+| **Display** | GPU-reported resolution, refresh rate, color depth per output |
 | **Battery** | Battery name, charge percentage, estimated runtime, chemistry type, design voltage (laptops) |
-| **Installed Software** | Top 20 installed programs with version numbers |
+| **Installed Software** | Top 30 installed programs with version numbers (fast registry-based scanning) |
+
+### 💾 Disk Health (S.M.A.R.T.)
+| Feature | Details |
+|---------|---------|
+| **S.M.A.R.T. Data** | Raw attribute parsing from `MSStorageDriver_ATAPISmartData` WMI |
+| **Power-On Hours** | Total lifetime the disk has been powered on (hours, days, years) |
+| **Power Cycle Count** | Number of times the disk was turned on/off |
+| **Temperature** | Current drive temperature in °C and °F |
+| **Health Status** | ✅ Healthy / ⚠️ Warning / ❌ Critical — based on reallocated, pending, and uncorrectable sectors |
+| **SSD vs HDD Detection** | Automatic media type detection via `MSFT_PhysicalDisk` |
+| **All Attributes Table** | Expandable table with ID, name, current, worst, threshold, raw value, and status for every S.M.A.R.T. attribute |
+| **Threshold Checking** | Reads thresholds from `MSStorageDriver_FailurePredictThresholds` and flags degraded attributes |
+
+### 🖥️ Monitor Info (EDID)
+| Feature | Details |
+|---------|---------|
+| **EDID Parsing** | Reads raw Extended Display Identification Data from hardware registers |
+| **Manufacturer** | Decoded from PnP codes (Samsung, Dell, LG, ASUS, BenQ, Acer, etc.) |
+| **Serial Number** | Hardware serial from EDID descriptor blocks |
+| **Screen Size** | Physical dimensions in cm and inches with diagonal calculation |
+| **Native Resolution** | Parsed from EDID detailed timing blocks |
+| **Color Bit Depth** | 6-bit, 8-bit, 10-bit, 12-bit, etc. |
+| **Display Type** | Digital (HDMI/DisplayPort/DVI) or Analog (VGA) |
+| **Connection Type** | HDMI, DisplayPort, DVI, VGA, eDP, etc. via `WmiMonitorConnectionParams` |
+| **Manufacture Date** | Week and year of manufacture with estimated lifetime usage |
+| **DPMS Support** | Standby, Suspend, Active-Off power management capabilities |
+| **Supported Resolutions** | Established timings list from EDID |
+| **Fallback Detection** | Uses `WmiMonitorID` when EDID raw blocks are unavailable |
 
 ### 🌐 Networking Tools
 | Feature | Details |
@@ -81,6 +112,13 @@
 | **Network Services** | Status of 17 critical network services (DHCP, DNS Cache, WLAN, Netlogon, etc.) with start type |
 | **Full Diagnostics** | One-click diagnostic that tests: Internet connectivity, DNS resolution, firewall status, network adapters, and gateway reachability |
 
+### ⚙️ Settings & Theming
+| Feature | Details |
+|---------|---------|
+| **Dark / Light / System Theme** | Switch between dark mode, light mode, or follow system setting |
+| **Auto-load Toggle** | Enable/disable automatic data loading when switching tabs |
+| **About Section** | App version, description, and GitHub link |
+
 ### 📤 Export Capabilities
 | Format | Details |
 |--------|---------|
@@ -94,11 +132,9 @@
 
 ## 📸 Screenshots
 
-> After launching, click **🔄 Refresh All** on each tab to populate data.
+> Data loads **automatically** when you switch tabs (configurable in Settings).
 
 ### System Specs Tab
-The main overview tab showing hardware, OS, and software information in organized cards with visual indicators:
-
 ```
 ┌──────────────────────────────────────────────────┐
 │  [🔄 Refresh All]  [📋 Export JSON]  [📝 Export] │
@@ -107,27 +143,76 @@ The main overview tab showing hardware, OS, and software information in organize
 │  │  Name:          AMD Ryzen 9 7950X        │     │
 │  │  Cores:         16                        │     │
 │  │  Logical Procs: 32                        │     │
-│  │  Max Speed:     5881 MHz                  │     │
-│  │  Architecture:  x64                       │     │
+│  └──────────────────────────────────────────┘     │
+│                                                    │
+│  ┌─ 🎮 Graphics (GPU) ────────────────────┐      │
+│  │  Name:       NVIDIA GeForce RTX 4070    │      │
+│  │  VRAM:       8.00 GB  ← accurate!       │      │
+│  │  Resolution: 2560 x 1440                │      │
+│  │  Refresh:    165 Hz                     │      │
+│  │  Driver:     32.0.15.6590 (2026-01-15)  │      │
 │  └──────────────────────────────────────────┘     │
 │                                                    │
 │  ┌─ 🧠 Memory (RAM) ──────────────────────┐      │
 │  │  [████████████░░░░░░░░] 62%             │      │
-│  │  Total RAM:     32.00 GB                │      │
-│  │  Available RAM: 12.14 GB                │      │
-│  └─────────────────────────────────────────┘      │
-│                                                    │
-│  ┌─ 💾 Storage Drives ────────────────────┐       │
-│  │  C:\ [System] NTFS                     │       │
-│  │  [███████████��██░░░░░] 71%             │       │
-│  │  Total: 953.87 GB  Free: 276.42 GB     │       │
+│  │  Total: 32.00 GB  Available: 12.14 GB   │      │
 │  └─────────────────────────────────────────┘      │
 └──────────────────────────────────────────────────┘
 ```
 
-### Networking Tab
-Full network diagnostics with interactive tools:
+### Disk Health Tab (S.M.A.R.T.)
+```
+┌──────────────────────────────────────────────────┐
+│  [🔄 Refresh Disk Health]                         │
+│                                                    │
+│  ┌─ 💾 Samsung SSD 980 PRO 1TB ─ ✅ Healthy ┐   │
+│  │  Media Type:     SSD (Solid State)         │   │
+│  │  Interface:      SCSI (NVMe)               │   │
+│  │  Power-On Time:  8,742 hours               │   │
+│  │  Power Cycles:   1,247                     │   │
+│  │  Temperature:    38°C / 100°F              │   │
+│  │  ────────────────────────────────────────  │   │
+│  │  Reallocated:    0                         │   │
+│  │  Pending:        0                         │   │
+│  │  Uncorrectable:  0                         │   │
+│  │                                             │   │
+│  │  ▸ All S.M.A.R.T. Attributes (14)         │   │
+│  │    ID  Attribute            Curr  Raw  Sts │   │
+│  │    1   Read Error Rate      100   0    OK  │   │
+│  │    5   Reallocated Sectors  100   0    OK  │   │
+│  │    9   Power-On Hours       98    8742 OK  │   │
+│  │    194 Temperature          68    38   OK  │   │
+│  └─────────────────��───────────────────────────┘  │
+└──────────────────────────────────────────────────┘
+```
 
+### Monitor Info Tab (EDID)
+```
+┌──────────────────────────────────────────────────┐
+│  [🔄 Refresh Monitor Info]                        │
+│                                                    │
+│  ┌─ 🖥️ Monitor 1: DELL S2722DGM ─ 🟢 Active ┐  │
+│  │  Manufacturer:   Dell (DEL)                 │  │
+│  │  Serial:         F8KH3N3                    │  │
+│  │  Connection:     DisplayPort (External)     │  │
+│  │  ────────────────────────────────────────   │  │
+│  │  Display Type:   Digital (DisplayPort)      │  │
+│  │  Color Depth:    8-bit                      │  │
+│  │  Gamma:          2.20                       │  │
+│  │  ────────────────────────────────────────   │  │
+│  │  Native Res:     2560 x 1440               │  │
+│  │  Screen Size:    60 cm x 34 cm             │  │
+│  │  Diagonal:       27.2"                      │  │
+│  │  ────────────────────────────────────────   │  │
+│  │  Manufactured:   Week 22, 2023              │  │
+│  │  Est. Usage:     ~2.7 yrs (est. 7,884 hrs) │  │
+│  │                                              │  │
+│  │  ▸ Supported Resolutions (8)                │  │
+│  └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+### Networking Tab
 ```
 ┌──────────────────────────────────────────────────┐
 │  [🔄 Refresh]  [📋 JSON]  [📝 Text]              │
@@ -153,8 +238,6 @@ Full network diagnostics with interactive tools:
 ```
 
 ### Diagnostics Tab
-Performance monitoring and system health checks:
-
 ```
 ┌──────────────────────────────────────────────────┐
 │  [🔄 Refresh] [⏱️ Start Monitor] [🩺 Diagnose]   │
@@ -179,7 +262,31 @@ Performance monitoring and system health checks:
 │    🔌 Wi-Fi: Wireless80211 - 867 Mbps             │
 │  [5/5] Testing Gateway...                          │
 │    ✅ Gateway 192.168.1.1: OK (1ms)               │
-│  === Diagnostics Complete ===                      ��
+│  === Diagnostics Complete ===                      │
+└──────────────────────────────────────────────────┘
+```
+
+### Settings
+```
+┌──────────────────────────────────────────────────┐
+│  Settings                                          │
+│                                                    │
+│  ┌─ 🎨 Appearance ────────────────────────┐       │
+│  │  App Theme:                             │       │
+│  │  ○ Use system setting                   │       │
+│  │  ○ Light                                │       │
+│  │  ● Dark                                 │       │
+│  └─────────────────────────────────────────┘       │
+│                                                    │
+│  ┌─ 🔄 Behavior ──────────────────────────┐       │
+│  │  Auto-load data when switching tabs [✓] │       │
+│  └─────────────────────────────────────────┘       │
+│                                                    │
+│  ┌─ ℹ️ About ──────────────────────────────┐      │
+│  │  SystemReview v1.2.0                     │      │
+│  │  Made by Crazegi                         │      │
+│  │  [View on GitHub]                        │      │
+│  └──────────────────────────────────────────┘      │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -195,7 +302,7 @@ Performance monitoring and system health checks:
 | **Windows App SDK** | 1.6 Runtime (bundled in self-contained builds) |
 | **RAM** | 4 GB minimum, 8 GB recommended |
 | **Disk Space** | ~200 MB for self-contained build |
-| **Permissions** | Administrator recommended (for WMI, Event Logs, Performance Counters) |
+| **Permissions** | Administrator recommended (required for S.M.A.R.T. data, Event Logs, Performance Counters) |
 
 ---
 
@@ -246,8 +353,8 @@ dotnet --version   # Should show 10.x.x
 
 ```powershell
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/SystemReview.git
-cd SystemReview
+git clone https://github.com/Crazegi/SystemReviewApp.git
+cd SystemReviewApp
 
 # Restore NuGet packages
 dotnet restore SystemReview.csproj
@@ -295,103 +402,89 @@ dotnet publish SystemReview.csproj -c Release -r win-arm64 --self-contained true
 
 ### 🖥️ System Specs Tab
 
-This is the primary hardware and software inventory tab.
-
-1. Click **🔄 Refresh All** to scan your system
-2. All sections load in parallel for speed
-3. Scroll down to see all cards:
+The primary hardware and software inventory tab. **Data loads automatically** when you open the tab.
 
 | Card | What It Shows |
 |------|--------------|
-| **Processor** | CPU model, core count, thread count, clock speed, instruction set architecture |
+| **Processor** | CPU model, core count, thread count, clock speed, architecture |
 | **Memory** | Total/available RAM with a color-coded usage bar |
-| **Graphics** | Each GPU listed separately with driver and VRAM info |
+| **Graphics** | Each GPU with **accurate VRAM** (even >4 GB), resolution, refresh rate, color depth, driver version & date |
 | **Storage** | Per-drive cards with usage bars — quickly spot drives running low |
 | **Operating System** | Windows version, build, uptime, install date, current user |
 | **Motherboard / BIOS** | Board manufacturer/model, BIOS version and vendor |
-| **Display** | Connected monitors with resolution and refresh rate |
+| **Display** | Resolution, refresh rate, color depth per GPU output |
 | **Battery** | Charge level, estimated runtime, battery chemistry (laptops only) |
-| **Installed Software** | Top 20 installed programs sorted alphabetically with versions |
+| **Installed Software** | Top 30 installed programs (fast registry scan, not slow Win32_Product) |
+
+### 💾 Disk Health Tab
+
+Deep storage health analysis using S.M.A.R.T. data parsed from raw hardware registers.
+
+> ⚠️ **Run as Administrator** for full S.M.A.R.T. data! Without admin, basic disk info is still shown.
+
+- **Power-On Hours** — how long the disk has been running in its entire lifetime
+- **Power Cycle Count** — total on/off cycles
+- **Temperature** — current drive temperature
+- **Sector Health** — reallocated, pending, and uncorrectable sectors with color-coded warnings
+- **Health Badge** — instant visual: ✅ Healthy / ⚠️ Warning / ❌ Critical
+- **SSD vs HDD** — automatic media type detection
+- **Full Attribute Table** — expandable list of all S.M.A.R.T. attributes with thresholds
+
+### 🖥️ Monitor Info Tab
+
+Detailed monitor specifications parsed from EDID (Extended Display Identification Data).
+
+- **Manufacturer** — decoded from PnP 3-letter codes (supports 30+ brands)
+- **Screen dimensions** — physical size in cm/inches with diagonal
+- **Native resolution** — from detailed timing blocks
+- **Color depth & gamma** — bit depth and gamma curve
+- **Connection type** — HDMI, DisplayPort, DVI, VGA, eDP
+- **Age & estimated usage** — manufacture date with estimated lifetime hours
+- **Fallback** — uses `WmiMonitorID` when raw EDID is unavailable
 
 ### 🌐 Networking Tab
 
 Interactive network analysis tools with real-time updates.
 
-1. Click **🔄 Refresh** to load IP configuration, adapters, and network stats
-2. The app automatically detects network changes and refreshes
+| Tool | How To Use |
+|------|-----------|
+| **IP Config** | Auto-loads on tab open — shows all adapter IPs, gateways, DNS |
+| **Ping** | Enter host, click Ping — 4 ICMP requests with latency |
+| **Traceroute** | Enter host, click Trace — live hop-by-hop display |
+| **Port Scanner** | Click Scan — all TCP/UDP connections and listeners |
+| **DNS Lookup** | Enter hostname, click Lookup — resolves to all IPs |
+| **Net Stats** | Auto-loads — bytes/packets sent/received per adapter |
 
-#### Available Tools:
-
-**Ping Test**
-- Enter any IP address or hostname (default: `8.8.8.8`)
-- Click **Ping** — sends 4 ICMP echo requests
-- Shows round-trip time, TTL, and timestamps for each reply
-
-**Traceroute**
-- Enter a destination host
-- Click **Trace** — hops appear in real-time as `tracert` runs
-- Each hop shows address, latency, and status (OK/Timeout)
-
-**Port Scanner**
-- Click **Scan Ports**
-- Lists all active TCP connections (with state: ESTABLISHED, TIME_WAIT, etc.)
-- Lists all TCP and UDP listeners
-- Shows local/remote addresses and ports
-
-**DNS Lookup**
-- Enter a hostname (default: `www.microsoft.com`)
-- Click **Lookup**
-- Shows all resolved IP addresses with address family (IPv4/IPv6)
-
-**Network Statistics**
-- Automatically loaded on refresh
-- Shows per-adapter: bytes sent/received, packets, errors, link speed
+The app automatically detects network changes and refreshes.
 
 ### 🩺 Diagnostics Tab
 
 System health monitoring and automated diagnostics.
 
-**Performance Counters** — Click **🔄 Refresh** to get a snapshot:
-- CPU usage percentage
-- Available RAM in MB
-- Disk activity percentage
-- Current app memory usage
-- System thread and process counts
+- **Performance Counters** — CPU %, available RAM, disk activity, process count
+- **Real-time Monitor** — 2-second auto-refresh for continuous tracking
+- **Run Diagnostics** — 5-step automated health check (internet, DNS, firewall, adapters, gateway)
+- **Event Logs** — recent Windows System errors/warnings
+- **Network Services** — status of 17 critical Windows services
 
-**Real-time Monitor** — Click **⏱️ Start Monitor**:
-- Performance counters refresh every 2 seconds
-- Click **⏹️ Stop Monitor** to pause
-- Useful for watching resource usage during tasks
+### ⚙️ Settings
 
-**Run Diagnostics** — Click **🩺 Run Diagnostics**:
-Performs a 5-step automated health check:
-1. **Internet Connectivity** — Pings 8.8.8.8 (Google DNS)
-2. **DNS Resolution** — Resolves www.microsoft.com
-3. **Firewall Status** — Checks all Windows Firewall profiles
-4. **Network Adapters** — Lists active adapters with speeds
-5. **Gateway Test** — Pings all detected gateways
+Click the **⚙️ Settings** gear icon in the navigation bar:
 
-Results appear in real-time in the diagnostic log with ✅/❌ indicators.
-
-**Event Logs** — Shows the 10 most recent errors and warnings from the Windows System log.
-
-**Network Services** — Status of critical Windows networking services:
-- DHCP Client, DNS Client, Netlogon, WLAN AutoConfig
-- Network Location Awareness, Network Connections
-- IP Helper, Windows Time, and more
+- **Theme** — Switch between Dark, Light, or System default
+- **Auto-load** — Toggle automatic data loading when switching tabs
+- **About** — Version info and GitHub link
 
 ### 📤 Exporting Data
 
-Every tab has **Export JSON** and **Export Text** buttons:
+Every tab (Specs, Networking, Diagnostics) has **Export JSON** and **Export Text** buttons.
 
 | Export Type | Format | Best For |
 |-------------|--------|----------|
-| **JSON** | Structured, indented JSON | Automation, scripts, APIs, programmatic analysis |
-| **Text** | Formatted plain text with ASCII art | Sharing, printing, quick reading, documentation |
+| **JSON** | Structured, indented JSON | Automation, scripts, APIs |
+| **Text** | Formatted plain text with ASCII art | Sharing, printing, documentation |
 
-**Export location:** Files are saved to your **Desktop** with automatic timestamped names.
-
-Example filenames:
+Files save to your **Desktop** with timestamped names:
 ```
 SystemReview_Specs_20260213_143022.json
 SystemReview_Network_20260213_143145.txt
@@ -405,41 +498,45 @@ SystemReview_Diagnostics_20260213_143312.json
 ### Project Structure
 
 ```
-SystemReview/
+SystemReviewApp/
 │
-├── SystemReview.csproj          # Project configuration, NuGet references
-├── app.manifest                 # (optional) Application manifest for elevation
+├── SystemReview.csproj           # Project configuration, NuGet references
+├── WinApp.sln                    # Visual Studio solution file
+├── LICENSE                       # GNU GPL v3 license
+├── .gitignore                    # Git ignore rules (bin/, obj/, etc.)
 │
-├── App.xaml                     # Application entry point (XAML resources)
-├── App.xaml.cs                  # Application startup logic
+├── App.xaml                      # Application entry point (XAML resources)
+├── App.xaml.cs                   # Application startup, theme support
 │
-├── MainWindow.xaml              # Main window with NavigationView (tab bar)
-├── MainWindow.xaml.cs           # Navigation logic between tabs
+├── MainWindows.xaml              # Main window with NavigationView (5 tabs + Settings)
+├── MainWindows.xaml.cs           # Navigation logic, theme switching
 │
 ├── Helpers/
-│   ├── ObservableObject.cs      # INotifyPropertyChanged base class
-│   └── RelayCommand.cs          # ICommand implementations (sync + async)
+│   ├── ObservableObject.cs       # INotifyPropertyChanged base class
+│   └── RelayCommand.cs           # ICommand implementations (sync + async)
 │
 ├── Models/
-│   └── AllModels.cs             # All data records (CpuInfo, GpuInfo, etc.)
+│   └── AllModels.cs              # All data records (CpuInfo, GpuInfo, DiskHealthModel,
+│                                 #   MonitorDetailModel, SmartAttribute, etc.)
 │
 ├── Services/
-│   ├── WmiService.cs            # WMI queries (CPU, RAM, GPU, drives, etc.)
-│   ├── NetworkService.cs        # Network tools (ping, traceroute, DNS, ports)
-│   └── DiagnosticsService.cs    # Perf counters, event logs, services, diagnostics
+│   ├── WmiService.cs             # WMI queries, S.M.A.R.T. parsing, EDID parsing,
+│   │                             #   GPU VRAM from registry, monitor detection
+│   ├── NetworkService.cs         # Network tools (ping, traceroute, DNS, ports)
+│   └── DiagnosticsService.cs     # Perf counters, event logs, services, diagnostics
 │
 ├── ViewModels/
-│   ├── SystemSpecsViewModel.cs  # Logic + data for System Specs tab
-│   ├── NetworkingViewModel.cs   # Logic + data for Networking tab
-│   └── DiagnosticsViewModel.cs  # Logic + data for Diagnostics tab
+│   ├── SystemSpecsViewModel.cs   # Logic + data for System Specs tab
+│   ├── NetworkingViewModel.cs    # Logic + data for Networking tab
+│   └── DiagnosticsViewModel.cs   # Logic + data for Diagnostics tab
 │
 └── Views/
-    ├── SystemSpecsPage.xaml     # UI for System Specs tab
-    ├── SystemSpecsPage.xaml.cs  # Code-behind for System Specs
-    ├── NetworkingPage.xaml      # UI for Networking tab
-    ├── NetworkingPage.xaml.cs   # Code-behind for Networking
-    ├── DiagnosticsPage.xaml     # UI for Diagnostics tab
-    └── DiagnosticsPage.xaml.cs  # Code-behind for Diagnostics
+    ├── SystemSpecsPage.xaml/.cs  # System Specs tab (auto-loads)
+    ├── DiskHealthPage.xaml/.cs   # Disk Health tab — S.M.A.R.T. data (auto-loads)
+    ├── MonitorInfoPage.xaml/.cs  # Monitor Info tab — EDID data (auto-loads)
+    ├── NetworkingPage.xaml/.cs   # Networking tab
+    ├── DiagnosticsPage.xaml/.cs  # Diagnostics tab
+    └── SettingsPage.xaml/.cs     # Settings — theme, auto-load, about
 ```
 
 ### Design Patterns
@@ -449,9 +546,10 @@ SystemReview/
 | **MVVM** | ViewModels contain all logic; Views only handle UI binding and events |
 | **Observable Pattern** | `ObservableObject` base class with `INotifyPropertyChanged` for reactive UI |
 | **Command Pattern** | `RelayCommand` and `AsyncRelayCommand` for button bindings |
-| **Service Layer** | Static service classes (`WmiService`, `NetworkService`, `DiagnosticsService`) encapsulate all data access |
-| **Async/Await** | All I/O-bound and CPU-bound operations are async with `Task.Run` for WMI queries |
+| **Service Layer** | Static service classes encapsulate all data access |
+| **Async/Await** | All I/O-bound and CPU-bound operations are async with `Task.Run` |
 | **Parallel Loading** | `Task.WhenAll` loads all sections simultaneously for fast refresh |
+| **Auto-load** | Pages load data on `Loaded` event (configurable via Settings) |
 
 ### Technology Stack
 
@@ -461,7 +559,10 @@ SystemReview/
 | **App Platform** | Windows App SDK 1.6 |
 | **Language** | C# 12 |
 | **Runtime** | .NET 10.0 |
-| **Hardware Queries** | WMI via `System.Management` (Win32_Processor, Win32_VideoController, etc.) |
+| **Hardware Queries** | WMI via `System.Management` |
+| **GPU VRAM** | Windows Registry (`HardwareInformation.qwMemorySize`) |
+| **Disk Health** | WMI `MSStorageDriver_ATAPISmartData` + `FailurePredictThresholds` |
+| **Monitor Info** | WMI `WmiMonitorRawEEdidV1Block` + `WmiMonitorID` + `WmiMonitorConnectionParams` |
 | **Memory Info** | Native P/Invoke `GlobalMemoryStatusEx` |
 | **Networking** | `System.Net.NetworkInformation`, `System.Net.Dns`, `System.Diagnostics.Process` |
 | **Performance** | `System.Diagnostics.PerformanceCounter` |
@@ -476,13 +577,26 @@ SystemReview/
 | WMI Class | Data Retrieved |
 |-----------|---------------|
 | `Win32_Processor` | CPU name, cores, logical processors, speed, architecture |
-| `Win32_VideoController` | GPU name, driver, VRAM, resolution, refresh rate |
+| `Win32_VideoController` | GPU name, driver, resolution, refresh rate, color depth |
+| `Win32_DiskDrive` | Physical disk model, serial, firmware, interface, size |
 | `Win32_BaseBoard` | Motherboard manufacturer, product, serial |
 | `Win32_BIOS` | BIOS version, manufacturer, release date |
 | `Win32_OperatingSystem` | OS name, version, build, uptime, install date |
-| `Win32_DesktopMonitor` | Monitor names, resolutions, types |
 | `Win32_Battery` | Charge level, runtime, chemistry, voltage |
-| `Win32_Product` | Installed software names and versions |
+| `MSFT_PhysicalDisk` | SSD vs HDD detection (media type, spindle speed) |
+| `MSStorageDriver_ATAPISmartData` | Raw S.M.A.R.T. attribute data (power-on hours, temp, sectors) |
+| `MSStorageDriver_FailurePredictThresholds` | S.M.A.R.T. threshold values per attribute |
+| `WmiMonitorRawEEdidV1Block` | Raw EDID bytes for monitor identification |
+| `WmiMonitorID` | Monitor manufacturer, serial, name (fallback) |
+| `WmiMonitorConnectionParams` | Connection type (HDMI/DP/DVI/VGA) and active status |
+
+#### Registry Keys Used
+
+| Key | Purpose |
+|-----|---------|
+| `HKLM\SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}` | Accurate GPU VRAM (`qwMemorySize`) for cards >4 GB |
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall` | Fast installed software enumeration |
+| `HKLM\SOFTWARE\WOW6432Node\...\Uninstall` | 32-bit software on 64-bit systems |
 
 #### .NET APIs Used
 
@@ -505,24 +619,24 @@ SystemReview/
 
 ### Running as Administrator
 
-Some features provide richer data when run with elevated privileges:
+Some features require elevated privileges for full data:
 
 | Feature | Without Admin | With Admin |
 |---------|:------------:|:----------:|
 | CPU, GPU, Drives | ✅ Full | ✅ Full |
 | RAM | ✅ Full | ✅ Full |
+| GPU VRAM (>4 GB) | ✅ Full (registry) | ✅ Full |
+| **S.M.A.R.T. Disk Health** | ⚠️ Basic info only | ✅ **Full S.M.A.R.T. data** |
+| Monitor EDID | ✅ Full | ✅ Full |
 | Network IP/Adapters | ✅ Full | ✅ Full |
 | Ping, DNS, Traceroute | ✅ Full | ✅ Full |
 | Performance Counters | ⚠️ May be limited | ✅ Full |
 | Event Logs | ⚠️ May be limited | ✅ Full |
-| Installed Software (WMI) | ⚠️ May be slow | ✅ Full |
 | Firewall Status | ❌ Access denied | ✅ Full |
 
 To run as administrator:
 ```powershell
-# Right-click PowerShell → Run as Administrator, then:
-cd C:\path\to\SystemReview
-.\SystemReview.exe
+Start-Process .\SystemReview.exe -Verb RunAs
 ```
 
 ### Customizing Network Services List
@@ -560,12 +674,6 @@ dotnet publish SystemReview.csproj -c Release -r win-x64 --self-contained true
 </details>
 
 <details>
-<summary><strong>"Program does not contain a static 'Main' method"</strong></summary>
-
-The XAML files (`App.xaml`, `MainWindow.xaml`, Pages) are missing or misconfigured. Ensure all `.xaml` and `.xaml.cs` files exist and have matching `x:Class` attributes.
-</details>
-
-<details>
 <summary><strong>"Access Denied" errors for WMI or Event Logs</strong></summary>
 
 Run the application as Administrator:
@@ -575,9 +683,26 @@ Start-Process .\SystemReview.exe -Verb RunAs
 </details>
 
 <details>
-<summary><strong>Installed Software section is slow or empty</strong></summary>
+<summary><strong>S.M.A.R.T. data shows "N/A (run as Admin)"</strong></summary>
 
-The `Win32_Product` WMI class is notoriously slow (it validates every MSI package). This can take 30-60 seconds on systems with many installed programs. The app handles this gracefully — other sections load independently.
+The S.M.A.R.T. WMI classes (`MSStorageDriver_ATAPISmartData`) require administrator privileges. Run the app as admin to see power-on hours, temperature, and sector health.
+</details>
+
+<details>
+<summary><strong>GPU VRAM shows 4 GB instead of actual amount</strong></summary>
+
+This was fixed in v1.2.0. The app now reads VRAM from the Windows registry (`qwMemorySize`) which supports values >4 GB. If you still see incorrect values, ensure you're running the latest version.
+</details>
+
+<details>
+<summary><strong>Monitor Info tab shows no data</strong></summary>
+
+Some monitors don't expose EDID data through WMI. The app has multiple fallbacks:
+1. Raw EDID blocks (`WmiMonitorRawEEdidV1Block`)
+2. Monitor ID (`WmiMonitorID`) — manufacturer, serial, name
+3. Desktop Monitor (`Win32_DesktopMonitor`) — basic info
+
+If none work, your monitor's driver may not support WMI queries.
 </details>
 
 <details>
@@ -615,10 +740,10 @@ This is normal — the XAML IntelliSense in VS Code doesn't fully support WinUI 
 
 | Limitation | Reason | Workaround |
 |-----------|--------|------------|
-| **WiFi network scanning** | WinUI 3 unpackaged apps cannot access `WiFiAdapter.FindAllAdaptersAsync()` without package identity | Use `netsh wlan show networks` manually |
-| **Installed Software is slow** | `Win32_Product` WMI class validates each MSI entry | Wait ~30s; other sections load independently |
-| **Single architecture build** | Self-contained builds target one architecture | Build separately for x64 and ARM64 |
-| **No auto-update** | No built-in update mechanism | Check GitHub Releases periodically |
+| **NVMe S.M.A.R.T.** | Some NVMe drives don't expose data via `MSStorageDriver_ATAPISmartData` | Use manufacturer's tool (Samsung Magician, etc.) |
+| **Monitor EDID** | Some monitors/drivers don't expose raw EDID via WMI | App falls back to `WmiMonitorID` |
+| **WiFi network scanning** | WinUI 3 unpackaged apps can't access `WiFiAdapter` | Use `netsh wlan show networks` manually |
+| **Single architecture** | Self-contained builds target one architecture | Build separately for x64 and ARM64 |
 | **Windows only** | WMI, PerformanceCounter, and WinUI 3 are Windows-specific | No cross-platform support planned |
 | **Export to Desktop only** | Hardcoded export path | Modify `ExportAsync` methods for custom paths |
 
@@ -626,9 +751,16 @@ This is normal — the XAML IntelliSense in VS Code doesn't fully support WinUI 
 
 ## 🗺️ Roadmap
 
-### Planned Features
+### Completed ✅
+- [x] **Dark/Light theme toggle** — Manual theme switching with system theme detection
+- [x] **S.M.A.R.T. disk health** — Full disk lifetime and health analysis
+- [x] **Monitor EDID parsing** — Detailed monitor specs from hardware data
+- [x] **Accurate GPU VRAM** — Registry-based reading for >4 GB cards
+- [x] **Auto-load pages** — Data loads when switching tabs
+- [x] **Settings page** — Theme, behavior, and about info
+- [x] **Fast software scanning** — Registry-based instead of slow Win32_Product
 
-- [ ] **Dark/Light theme toggle** — Manual theme switching with system theme detection
+### Planned Features
 - [ ] **Hardware temperature monitoring** — CPU/GPU temps via OpenHardwareMonitor lib
 - [ ] **Network speed test** — Built-in download/upload speed measurement
 - [ ] **WiFi signal strength** — Wireless network signal quality display
@@ -636,9 +768,7 @@ This is normal — the XAML IntelliSense in VS Code doesn't fully support WinUI 
 - [ ] **Startup programs** — List and manage auto-start applications
 - [ ] **System health score** — Aggregate score based on all diagnostics
 - [ ] **Custom export paths** — File picker dialog for export location
-- [ ] **Scheduled reports** — Automatic periodic system reports
 - [ ] **Historical data** — Track system metrics over time with charts
-- [ ] **Localization** — Multi-language support
 - [ ] **MSIX packaging** — Microsoft Store distribution
 
 ---
@@ -653,17 +783,12 @@ Contributions are welcome! Here's how to get started:
    ```powershell
    winget install -e --id Microsoft.DotNet.SDK.10
    winget install -e --id Microsoft.WindowsAppRuntime.1.6
-   winget install -e --id Microsoft.VisualStudioCode
    ```
 
-2. Install VS Code extensions:
-   - **C# Dev Kit** (Microsoft)
-   - **XAML** (optional, for syntax highlighting)
-
-3. Fork and clone:
+2. Fork and clone:
    ```powershell
-   git clone https://github.com/YOUR_USERNAME/SystemReview.git
-   cd SystemReview
+   git clone https://github.com/YOUR_USERNAME/SystemReviewApp.git
+   cd SystemReviewApp
    dotnet restore SystemReview.csproj
    dotnet build SystemReview.csproj
    ```
@@ -676,7 +801,6 @@ Contributions are welcome! Here's how to get started:
    - MVVM pattern (logic in ViewModels, not code-behind)
    - Async/await for all I/O operations
    - Try-catch with user-friendly error messages
-   - XML documentation for public APIs
 4. **Test** your changes thoroughly
 5. **Commit:** `git commit -m "feat: add amazing feature"`
 6. **Push:** `git push origin feature/amazing-feature`
@@ -692,33 +816,27 @@ Contributions are welcome! Here's how to get started:
 | `style:` | UI/formatting changes (no logic change) |
 | `refactor:` | Code refactoring |
 | `perf:` | Performance improvement |
-| `test:` | Adding or fixing tests |
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
 
-```
-MIT License
+### What this means:
 
-Copyright (c) 2026 SystemReview Contributors
+- ✅ **Use** — You can use this software for any purpose
+- ✅ **Modify** — You can modify the source code
+- ✅ **Distribute** — You can share and distribute copies
+- ✅ **Patent Use** — Contributors provide an express grant of patent rights
+- ⚠️ **Same License** — Any modified version must also be distributed under GPL v3
+- ⚠️ **Disclose Source** — You must make your source code available when distributing
+- ⚠️ **State Changes** — You must document changes you make to the code
+- ❌ **No Sublicensing** — You cannot relicense under different terms
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+> **TL;DR:** You can do anything with this code, but if you distribute a modified version, you must keep it open source under the same GPL v3 license.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-```
+For the full license text, see: https://www.gnu.org/licenses/gpl-3.0.en.html
 
 ---
 
@@ -733,7 +851,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 <div align="center">
 
-**Made with ❤️ for Windows power users and IT professionals**
+**Made with ❤️ by [Crazegi](https://github.com/Crazegi) for Windows power users and IT professionals**
 
 ⭐ Star this repo if you find it useful!
 
